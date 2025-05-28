@@ -1,0 +1,38 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: authgate
+  datasource:
+    url: jdbc:postgresql://localhost:5432/authgate_db
+    username: postgres
+    password: toor
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: javaprogrammer1993@gmail.com
+    password: sbckiwyqtjghyptv
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+app:
+  jwt:
+    secret: mySecretKey123456789012345678901234567890
+    expiration: 86400000 # 24 heures
+  verification:
+    code-expiration: 300000 # 5 minutes
