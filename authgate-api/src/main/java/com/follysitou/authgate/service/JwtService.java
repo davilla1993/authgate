@@ -1,5 +1,6 @@
 package com.follysitou.authgate.service;
 
+import com.follysitou.authgate.repository.BlackListedTokenRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -21,6 +22,15 @@ public class JwtService {
 
     @Value("${app.jwt.expiration}")
     private int jwtExpirationInMs;
+
+    @Value("${app.jwt.refresh-expiration}")
+    private int refreshExpirationMs;
+
+    private final BlackListedTokenRepository blackListedTokenRepository;
+
+    public JwtService(BlackListedTokenRepository blackListedTokenRepository) {
+        this.blackListedTokenRepository = blackListedTokenRepository;
+    }
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
@@ -52,6 +62,15 @@ public class JwtService {
         return createToken(claims, userDetails.getUsername());
     }
 
+    public String generateRefreshToken(UserDetails userDetails) {
+        return Jwts.builder()
+                .subject(userDetails.getUsername())
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + refreshExpirationMs))
+                .signWith(getSignKey())
+                .compact();
+    }
+
     private String createToken(Map<String, Object> claims, String subject) {
         return Jwts.builder()
                 .claims(claims)
@@ -74,12 +93,15 @@ public class JwtService {
 
     public boolean isTokenValid(String token) {
         try {
-            return !isTokenExpired(token);
+            Jwts.parser()
+                    .verifyWith(getSignKey())
+                    .build()
+                    .parseSignedClaims(token);
+            return true;
         } catch (Exception e) {
             return false;
         }
     }
-
 
 }
 

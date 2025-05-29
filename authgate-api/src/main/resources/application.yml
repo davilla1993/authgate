@@ -33,6 +33,7 @@ spring:
 app:
   jwt:
     secret: mySecretKey123456789012345678901234567890
-    expiration: 86400000 # 24 heures
+    expiration: 1800000  # 30 min
+    refresh-expiration: 86400000 # 24h
   verification:
-    code-expiration: 300000 # 5 minutes
+    code-expiration: 600000 # 10 minutes

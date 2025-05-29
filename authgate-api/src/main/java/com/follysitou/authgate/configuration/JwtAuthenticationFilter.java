@@ -32,26 +32,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         this.authService = authService;
         this.blackListedTokenRepository = blackListedTokenRepository;
     }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
+        // 1. Extraire le token du header
         final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String userEmail;
-
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        jwt = authHeader.substring(7);
-        if (blackListedTokenRepository.existsByToken(jwt)) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token is blacklisted");
+        final String jwt = authHeader.substring(7);
+
+        // 2. Vérifier la blacklist (pour les access ET refresh tokens)
+        if (blackListedTokenRepository.existsById(jwt)) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token révoqué");
             return;
         }
-        userEmail = jwtService.extractUsername(jwt);
 
+        // 3. Valider le token
+        String userEmail = jwtService.extractUsername(jwt);
         if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails userDetails = this.authService.loadUserByUsername(userEmail);
 
@@ -65,6 +67,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }
         }
+
         filterChain.doFilter(request, response);
     }
 }
+

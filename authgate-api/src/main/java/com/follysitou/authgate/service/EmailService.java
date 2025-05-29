@@ -17,7 +17,7 @@ public class EmailService {
         message.setTo(to);
         message.setSubject(subject);
         message.setText(messagePrefix + code +
-                "\n\nCe code expire dans 5 minutes." +
+                "\n\nCe code expire dans 10 minutes." +
                 "\n\nSi vous n'avez pas demandé ce code, ignorez ce message.");
 
         mailSender.send(message);

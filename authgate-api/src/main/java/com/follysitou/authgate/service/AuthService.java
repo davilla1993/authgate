@@ -1,9 +1,11 @@
 package com.follysitou.authgate.service;
 
 import com.follysitou.authgate.dtos.*;
+import com.follysitou.authgate.models.BlackListedToken;
 import com.follysitou.authgate.models.Permission;
 import com.follysitou.authgate.models.Role;
 import com.follysitou.authgate.models.User;
+import com.follysitou.authgate.repository.BlackListedTokenRepository;
 import com.follysitou.authgate.repository.PermissionRepository;
 import com.follysitou.authgate.repository.RoleRepository;
 import com.follysitou.authgate.repository.UserRepository;
@@ -18,6 +20,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Random;
 import java.util.UUID;
@@ -32,13 +35,14 @@ public class AuthService implements UserDetailsService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final PermissionRepository permissionRepository;
+    private final BlackListedTokenRepository blackListedTokenRepository;
 
     @Value("${app.verification.code-expiration}")
     private long codeExpirationTime;
 
     public AuthService(RoleRepository roleRepository, UserRepository userRepository, PasswordEncoder passwordEncoder,
                        JwtService jwtService, EmailService emailService, @Lazy AuthenticationManager authenticationManager,
-                       PermissionRepository permissionRepository) {
+                       PermissionRepository permissionRepository, BlackListedTokenRepository blackListedTokenRepository) {
 
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
@@ -47,6 +51,7 @@ public class AuthService implements UserDetailsService {
         this.emailService = emailService;
         this.authenticationManager = authenticationManager;
         this.permissionRepository = permissionRepository;
+        this.blackListedTokenRepository = blackListedTokenRepository;
     }
 
     @Override
@@ -99,12 +104,11 @@ public class AuthService implements UserDetailsService {
             user.setVerificationCodeExpiry(LocalDateTime.now().plusSeconds(codeExpirationTime / 1000));
             userRepository.save(user);
 
-            emailService.sendVerificationCode(user.getEmail(),
-                                               verificationCode,
+            emailService.sendVerificationCode(user.getEmail(), verificationCode,
                                                 "Vérifier votre connexion",
                             "Voici votre code pour vous connecter : ");
 
-            return new AuthResponse(user.getEmail(), true);
+            return new AuthResponse("Un code de vérification a été envoyé à votre email", true);
 
         } catch (Exception e) {
             throw new RuntimeException("Email ou mot de passe incorrect");
@@ -132,9 +136,10 @@ public class AuthService implements UserDetailsService {
         userRepository.save(user);
 
         // Générer le token JWT
-        String token = jwtService.generateToken(user);
+        String accessToken = jwtService.generateToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
 
-        return new AuthResponse(token, user.getEmail(), user.getFirstName(), user.getLastName());
+        return new AuthResponse(accessToken, refreshToken);
     }
 
     public ApiResponse forgotPassword(ForgotPasswordRequest request) {
@@ -165,6 +170,25 @@ public class AuthService implements UserDetailsService {
         userRepository.save(user);
 
         return new ApiResponse(true, "Mot de passe réinitialisé avec succès");
+    }
+
+    public AuthResponse refreshToken(String oldRefreshToken) {
+        // 1. Valider l'ancien token
+        String email = jwtService.extractUsername(oldRefreshToken);
+        User user = (User) loadUserByUsername(email);
+
+        if (!jwtService.validateToken(oldRefreshToken, user)) {
+            throw new RuntimeException("Refresh token invalide");
+        }
+
+        // 2. Blacklister l'ancien token
+        blackListedTokenRepository.save(new BlackListedToken(oldRefreshToken, Instant.now()));
+
+        // 3. Générer nouveaux tokens
+        String newAccessToken = jwtService.generateToken(user);
+        String newRefreshToken = jwtService.generateRefreshToken(user);
+
+        return new AuthResponse(newAccessToken, newRefreshToken);
     }
 
     private void createAndAssignBasicRole(User user) {

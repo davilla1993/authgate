@@ -1,6 +1,7 @@
 package com.follysitou.authgate;
 
 import com.follysitou.authgate.repository.BlackListedTokenRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -18,14 +19,10 @@ public class AuthgateApplication {
 		SpringApplication.run(AuthgateApplication.class, args);
 	}
 
-	@Scheduled(cron = "0 0 * * * *") // chaque heure
+	@Scheduled(cron = "0 0 * * * *") // Toutes les heures
+	@Transactional
 	public void cleanExpiredTokens() {
-		Instant now = Instant.now();
-		blackListedTokenRepository.deleteAll(
-				blackListedTokenRepository.findAll().stream()
-						.filter(t -> t.getExpiryDate().isBefore(now))
-						.toList()
-		);
+		blackListedTokenRepository.deleteByExpiryDateBefore(Instant.now());
 	}
 
 }

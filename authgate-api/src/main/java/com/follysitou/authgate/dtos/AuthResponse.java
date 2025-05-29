@@ -7,22 +7,23 @@ import lombok.Setter;
 @Setter
 public class AuthResponse {
 
-    private String token;
-    private String type = "Bearer";
-    private String email;
-    private String firstName;
-    private String lastName;
-    private boolean requiresVerification = false;
+    private String accessToken;
+    private String refreshToken;
+    private String message;
+    private boolean requiresVerification;
 
-    public AuthResponse(String token, String email, String firstName, String lastName) {
-        this.token = token;
-        this.email = email;
-        this.firstName = firstName;
-        this.lastName = lastName;
+    public AuthResponse(String accessToken, String refreshToken) {
+        this.accessToken = accessToken;
+        this.refreshToken = refreshToken;
+
     }
 
-    public AuthResponse(String email, boolean requiresVerification) {
-        this.email = email;
+    public AuthResponse(String token) {
+        this.accessToken = token;
+        this.requiresVerification = false;
+    }
+    public AuthResponse(String message, boolean requiresVerification) {
+        this.message = message;
         this.requiresVerification = requiresVerification;
     }
 }
