@@ -1,5 +1,6 @@
 package com.follysitou.authgate.models;
 
+import com.follysitou.authgate.service.EmailService;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -8,6 +9,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -21,10 +24,13 @@ import java.util.stream.Collectors;
 @Entity
 @Getter
 @Setter
+@Slf4j
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "users")
 public class User implements UserDetails {
+
+    private static final int MAX_FAILED_ATTEMPTS = 4;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -56,6 +62,17 @@ public class User implements UserDetails {
     )
     private Set<Role> roles = new HashSet<>();
 
+    private LocalDateTime lockTime;
+
+    private String lockReason;
+    private LocalDateTime manualLockTime;
+    private String lockedBy; // Email de l'admin qui a verrouillé
+
+    private LocalDateTime lastLoginAttempt;
+    private LocalDateTime passwordChangedAt;
+
+    private int failedAttempts;
+
     private boolean enabled = true;
 
     private boolean accountNonExpired = true;
@@ -76,6 +93,20 @@ public class User implements UserDetails {
 
     private LocalDateTime updatedAt;
 
+    @PrePersist
+    @PreUpdate
+    public void updateTimestamps() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void recordLoginAttempt() {
+        this.lastLoginAttempt = LocalDateTime.now();
+    }
+
+    public void recordPasswordChange() {
+        this.passwordChangedAt = LocalDateTime.now();
+    }
+
     public User(String firstName, String lastName, String email, String password) {
         this.firstName = firstName;
         this.lastName = lastName;
@@ -86,17 +117,47 @@ public class User implements UserDetails {
         this.updatedAt = LocalDateTime.now();
     }
 
-    @PreUpdate
-    public void preUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
-
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return this.roles.stream()
                 .flatMap(role -> role.getPermissions().stream())
                 .map(permission -> new SimpleGrantedAuthority(permission.getName()))
                 .collect(Collectors.toSet());
+    }
+
+    public boolean incrementFailedAttempts() {
+        this.failedAttempts++;
+        log.info(">>> Tentative échouée pour {}, tentative n°{}", this.email, this.failedAttempts);
+
+        if (this.failedAttempts >= MAX_FAILED_ATTEMPTS) {
+            this.lockAccount();
+            log.warn("Compte verrouillé pour email: {}", this.email);
+
+            return true;
+        }
+        return false;
+    }
+
+    public void lockAccount() {
+        this.accountNonLocked = false;
+        this.lockTime = LocalDateTime.now();
+    }
+
+    public void manualLock(String reason, String lockedBy) {
+        this.accountNonLocked = false;
+        this.lockReason = reason;
+        this.manualLockTime = LocalDateTime.now();
+        this.lockedBy = lockedBy;
+    }
+
+    public void unlockAccount() {
+        this.accountNonLocked = true;
+        this.failedAttempts = 0;
+        this.lockTime = null;
+    }
+
+    public boolean isAccountLocked() {
+        return !this.accountNonLocked;
     }
 
     @Override
@@ -123,7 +184,5 @@ public class User implements UserDetails {
     public boolean isEnabled() {
         return enabled;
     }
-
-
 }
 

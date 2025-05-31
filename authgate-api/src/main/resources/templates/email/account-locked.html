@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Compte verrouillé - AuthGate</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #ffffff;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+      line-height: 1.6;
+    }
+
+    .content {
+      max-width: 600px;
+    }
+
+    .header h1 {
+      color: #e74c3c;
+      font-size: 22px;
+      margin-bottom: 20px;
+    }
+
+    .highlight {
+      font-weight: bold;
+      color: #2c3e50;
+    }
+
+    .footer {
+      margin-top: 40px;
+      font-size: 13px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+<div class="content">
+  <div class="header">
+    <h1>⚠️ Compte verrouillé - AuthGate</h1>
+  </div>
+
+  <p>Bonjour Madame/Monsieur <strong th:text="${firstName}">,</strong></p>
+
+  <p>Votre compte a été <strong style="color: #e74c3c;">verrouillé</strong>
+    <span th:if="${lockTime}" th:text="'le ' + ${#temporals.format(lockTime, 'dd/MM/yyyy à HH:mm')}"></span>.
+  </p>
+
+  <p th:if="${reason}">Raison : <span class="highlight" th:text="${reason}">Activité suspecte détectée</span></p>
+
+  <p th:if="${unlockTime}">
+    Il sera automatiquement déverrouillé le
+    <span class="highlight" th:text="${#temporals.format(unlockTime, 'dd/MM/yyyy à HH:mm')}"></span>.
+  </p>
+
+  <p>Si vous pensez qu'il s'agit d'une erreur, veuillez contacter notre équipe de support.</p>
+
+  <div class="footer">
+    <p>&copy; 2025 AuthGate — Sécurité et confiance avant tout.</p>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Code de vérification - AuthGate</title>
+    <style>
+        body {
+          font-family: Arial, sans-serif;
+          background-color: #ffffff;
+          margin: 0;
+          padding: 20px;
+          color: #333;
+          line-height: 1.6;
+        }
+
+        .content {
+          max-width: 600px;
+        }
+
+        .header h1 {
+          font-size: 22px;
+          color: #2c3e50;
+          margin-bottom: 5px;
+        }
+
+        .header p {
+          color: #555;
+          margin-top: 0;
+          font-size: 14px;
+        }
+
+        .code {
+          font-size: 22px;
+          font-weight: bold;
+          background-color: #f0f4f8;
+          padding: 10px 16px;
+          border-radius: 4px;
+          display: inline-block;
+          margin: 16px 0;
+          color: #2c3e50;
+          letter-spacing: 2px;
+        }
+
+        .footer {
+          margin-top: 40px;
+          font-size: 13px;
+          color: #888;
+        }
+    </style>
+</head>
+<body>
+<div class="content">
+    <div class="header">
+        <h1>AuthGate</h1>
+        <p>Sécurisez votre accès</p>
+    </div>
+
+    <p>Bonjour Madame/Monsieur <strong th:text="${firstName}">utilisateur</strong>,</p>
+
+    <p>Voici votre code de vérification :</p>
+    <div class="code" th:text="${code}">123456</div>
+
+    <p>Ce code est valide pendant <strong>10 minutes</strong>.</p>
+
+    <p style="margin-top: 30px;">
+        Si vous n'avez pas demandé ce code, vous pouvez ignorer cet email.
+    </p>
+
+    <div class="footer">
+        <p>L'équipe AuthGate<br>&copy; 2025 AuthGate. Tous droits réservés.</p>
+    </div>
+</div>
+</body>
+</html>

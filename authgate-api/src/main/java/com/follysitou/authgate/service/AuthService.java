@@ -9,9 +9,14 @@ import com.follysitou.authgate.repository.BlackListedTokenRepository;
 import com.follysitou.authgate.repository.PermissionRepository;
 import com.follysitou.authgate.repository.RoleRepository;
 import com.follysitou.authgate.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -22,10 +27,13 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 
+
 @Service
+@Slf4j
 public class AuthService implements UserDetailsService {
 
     private final JwtService jwtService;
@@ -39,6 +47,9 @@ public class AuthService implements UserDetailsService {
 
     @Value("${app.verification.code-expiration}")
     private long codeExpirationTime;
+
+    @Value("${app.account.lock-time-minutes}")
+    private int accountLockTimeMinutes;
 
     public AuthService(RoleRepository roleRepository, UserRepository userRepository, PasswordEncoder passwordEncoder,
                        JwtService jwtService, EmailService emailService, @Lazy AuthenticationManager authenticationManager,
@@ -82,38 +93,86 @@ public class AuthService implements UserDetailsService {
         userRepository.save(user);
 
         // Envoyer le code de vérification par email
-        emailService.sendVerificationCode(user.getEmail(),
-                                          verificationCode,
-                                        "Vérification de votre email",
-                "Pour finaliser votre inscription, voici votre code de vérification : ");
+        emailService.sendVerificationCode(user.getEmail(), verificationCode, user.getFirstName());
 
         return new ApiResponse(true, "Un code de vérification a été envoyé à votre adresse email");
     }
 
     public AuthResponse login(LoginRequest request) {
         try {
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-            );
+            Optional<User> userOptional = userRepository.findByEmail(request.getEmail());
+            if (userOptional.isPresent()) {
+                User user = userOptional.get();
 
-            User user = (User) authentication.getPrincipal();
+                // Vérifier si le compte est verrouillé
+                if (user.isAccountLocked()) {
+                    if (user.getLockTime().plusMinutes(accountLockTimeMinutes).isAfter(LocalDateTime.now())) {
+                        throw new RuntimeException("Votre compte est verrouillé. Veuillez réessayer plus tard.");
+                    } else {
+                        user.unlockAccount();
+                        userRepository.save(user);
+                    }
+                }
 
-            // Générer et envoyer le code de vérification
-            String verificationCode = generateVerificationCode();
-            user.setVerificationCode(verificationCode);
-            user.setVerificationCodeExpiry(LocalDateTime.now().plusSeconds(codeExpirationTime / 1000));
-            userRepository.save(user);
+                // Authentification
+                Authentication authentication = authenticationManager.authenticate(
+                        new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+                );
 
-            emailService.sendVerificationCode(user.getEmail(), verificationCode,
-                                                "Vérifier votre connexion",
-                            "Voici votre code pour vous connecter : ");
+                // Réinitialiser les tentatives échouées après succès
+                user.setFailedAttempts(0);
+                user.setLastLoginAttempt(LocalDateTime.now());
+                userRepository.save(user);
 
-            return new AuthResponse("Un code de vérification a été envoyé à votre email", true);
+                User authenticatedUser = (User) authentication.getPrincipal();
+
+                // Ne générer un nouveau code QUE si l'ancien est expiré ou inexistant
+                if (authenticatedUser.getVerificationCode() == null ||
+                        authenticatedUser.getVerificationCodeExpiry().isBefore(LocalDateTime.now())) {
+
+                    String verificationCode = generateVerificationCode();
+                    authenticatedUser.setVerificationCode(verificationCode);
+                    authenticatedUser.setVerificationCodeExpiry(LocalDateTime.now().plusSeconds(codeExpirationTime / 1000));
+                    userRepository.save(authenticatedUser);
+
+                    emailService.sendVerificationCode(
+                            authenticatedUser.getEmail(),
+                            verificationCode, authenticatedUser.getFirstName());
+
+                    return new AuthResponse("Un code de vérification a été envoyé à votre email", true);
+                } else {
+                    return new AuthResponse("Un code de vérification a déjà été envoyé", true);
+                }
+            }
+
+            throw new RuntimeException("Utilisateur non trouvé");
+
+        } catch (BadCredentialsException e) {
+            userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
+                boolean justLocked = user.incrementFailedAttempts(); // logique métier
+                userRepository.save(user);
+
+                if (justLocked) {
+                    log.info(">>> ENVOI DE MAIL DE VERROUILLAGE À {}", user.getEmail());
+
+                    emailService.sendAccountLockedEmail(
+                            user.getEmail(),
+                            "Votre compte a été verrouillé après plusieurs tentatives de connexion infructueuses",
+                            user.getLockTime(),
+                            user.getLockTime().plusMinutes(accountLockTimeMinutes),
+                            user.getFirstName()
+                    );
+                }
+            });
+
+            throw new RuntimeException("Email ou mot de passe incorrect");
 
         } catch (Exception e) {
-            throw new RuntimeException("Email ou mot de passe incorrect");
+            throw new RuntimeException("Erreur lors de la connexion: " + e.getMessage());
         }
     }
+
+
 
     public AuthResponse verifyCode(VerificationRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
@@ -139,7 +198,7 @@ public class AuthService implements UserDetailsService {
         String accessToken = jwtService.generateToken(user);
         String refreshToken = jwtService.generateRefreshToken(user);
 
-        return new AuthResponse(accessToken, refreshToken);
+        return new AuthResponse(accessToken, refreshToken, "Succès");
     }
 
     public ApiResponse forgotPassword(ForgotPasswordRequest request) {
@@ -167,6 +226,7 @@ public class AuthService implements UserDetailsService {
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         user.setResetPasswordToken(null);
         user.setResetPasswordTokenExpiry(null);
+        user.recordPasswordChange();
         userRepository.save(user);
 
         return new ApiResponse(true, "Mot de passe réinitialisé avec succès");
@@ -189,6 +249,47 @@ public class AuthService implements UserDetailsService {
         String newRefreshToken = jwtService.generateRefreshToken(user);
 
         return new AuthResponse(newAccessToken, newRefreshToken);
+    }
+
+    public ApiResponse lockUserAccount(String email, String reason, String adminEmail) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+
+        if (user.isAccountLocked()) {
+            return new ApiResponse(false, "Le compte est déjà verrouillé");
+        }
+
+        user.manualLock(reason, adminEmail);
+        userRepository.save(user);
+
+        // Log l'action
+        log.info("Compte {} verrouillé par {} pour raison : {}", email, adminEmail, reason);
+
+        emailService.sendAccountManuallyLockedEmail(
+                user.getEmail(),
+                "Votre compte a été verrouillé",
+                reason
+        );
+
+        return new ApiResponse(true, "Compte verrouillé avec succès");
+    }
+
+    public ApiResponse unlockUserAccount(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+
+        if (!user.isAccountLocked()) {
+            return new ApiResponse(false, "Le compte n'est pas verrouillé");
+        }
+
+        user.unlockAccount();
+        userRepository.save(user);
+
+        emailService.sendAccountUnlockedEmail(user.getEmail(),
+                "Votre compte a été déverrouillé par un administrateur. " +
+                        "Vous pouvez maintenant vous connecter normalement.");
+
+        return new ApiResponse(true, "Compte déverrouillé avec succès");
     }
 
     private void createAndAssignBasicRole(User user) {

@@ -18,6 +18,12 @@ public class AuthResponse {
 
     }
 
+    public AuthResponse(String accessToken, String refreshToken, String message) {
+        this.accessToken = accessToken;
+        this.refreshToken = refreshToken;
+        this.message = message;
+    }
+
     public AuthResponse(String token) {
         this.accessToken = token;
         this.requiresVerification = false;

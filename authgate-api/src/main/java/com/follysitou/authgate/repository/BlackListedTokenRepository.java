@@ -11,7 +11,8 @@ import java.time.Instant;
 
 @Repository
 public interface BlackListedTokenRepository extends JpaRepository<BlackListedToken, String> {
-    boolean existsByToken(String token);
+
+    boolean existsByTokenHash(String tokenHash);
 
     @Modifying
     @Query("DELETE FROM BlackListedToken t WHERE t.expiryDate < :now")

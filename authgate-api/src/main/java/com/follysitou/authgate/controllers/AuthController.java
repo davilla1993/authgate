@@ -1,24 +1,35 @@
 package com.follysitou.authgate.controllers;
 
 import com.follysitou.authgate.dtos.*;
+import com.follysitou.authgate.dtos.ApiResponse;
 import com.follysitou.authgate.models.BlackListedToken;
 import com.follysitou.authgate.models.User;
 import com.follysitou.authgate.repository.BlackListedTokenRepository;
+import com.follysitou.authgate.repository.UserRepository;
 import com.follysitou.authgate.service.AuthService;
 import com.follysitou.authgate.service.JwtService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @Slf4j
@@ -32,6 +43,12 @@ public class AuthController {
     private final JwtService jwtService;
 
     private final BlackListedTokenRepository blackListedTokenRepository;
+
+    private final UserRepository userRepository;
+
+    @Value("${app.account.lock-time-minutes}")
+    private int accountLockTimeMinutes;
+
 
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequest registerRequest) {
@@ -145,6 +162,42 @@ public class AuthController {
                 .body(new AuthResponse(newAccessToken, user.getEmail()));
     }
 
+    @PostMapping("/lock-account")
+    @PreAuthorize("hasAuthority('user_manage')")
+    public ResponseEntity<?> lockUserAccount(@Valid @RequestBody LockAccountRequest request,
+                                             @AuthenticationPrincipal UserDetails adminDetails) {
+        try {
+
+            // Récupérer l'email de l'admin connecté
+            String adminEmail = adminDetails.getUsername();
+
+            ApiResponse response = authService.lockUserAccount(
+                    request.getEmail(),
+                    request.getReason(),
+                    adminEmail);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse(false, "Erreur : " + e.getMessage()));
+        }
+    }
+
+    @PreAuthorize("hasAuthority('user_manage')")
+    public ResponseEntity<?> unlockUserAccount(@RequestParam String email) {
+        try {
+            ApiResponse response = authService.unlockUserAccount(email);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse(false, "Erreur : " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/locked-accounts")
+    public List<User> getLockedAccounts() {
+        return userRepository.findByAccountNonLockedFalse();
+    }
 
     @PostMapping("/revoke-token")
     @PreAuthorize("hasRole('ADMIN')")
@@ -159,6 +212,49 @@ public class AuthController {
         return ResponseEntity.ok(new ApiResponse(true, "Token révoqué avec succès"));
     }
 
+    @GetMapping("/account-status/{email}")
+    @PreAuthorize("hasAuthority('user_manage')")
+    public ResponseEntity<?> getAccountStatus(@PathVariable @Email String email) {
+        try {
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("email", user.getEmail());
+            response.put("isLocked", !user.isAccountNonLocked());
+            response.put("status", user.isAccountNonLocked() ? "ACTIF" : "VERROUILLÉ");
+            response.put("lastLoginAttempt", user.getLastLoginAttempt());
+            response.put("passwordChangedAt", user.getPasswordChangedAt());
+
+            if (!user.isAccountNonLocked()) {
+                response.put("lockReason", user.getLockReason());
+                response.put("lockedSince", user.getManualLockTime());
+                response.put("lockedBy", user.getLockedBy());
+
+                if (user.getLockTime() != null) { // Verrouillage automatique
+                    response.put("autoUnlockTime", user.getLockTime().plusMinutes(accountLockTimeMinutes));
+                }
+            }
+
+            response.put("failedAttempts", user.getFailedAttempts());
+            response.put("lastUpdate", user.getUpdatedAt());
+
+            // Calcul de l'ancienneté du mot de passe (en jours)
+            if (user.getPasswordChangedAt() != null) {
+                long passwordAgeDays = ChronoUnit.DAYS.between(
+                        user.getPasswordChangedAt(),
+                        LocalDateTime.now()
+                );
+                response.put("passwordAgeDays", passwordAgeDays);
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse(false, "Erreur : " + e.getMessage()));
+        }
+    }
     private ResponseCookie createRefreshTokenCookie(String refreshToken) {
         return ResponseCookie.from("refreshToken", refreshToken)
                 .httpOnly(true)

@@ -3,6 +3,7 @@ package com.follysitou.authgate.configuration;
 import com.follysitou.authgate.repository.BlackListedTokenRepository;
 import com.follysitou.authgate.service.AuthService;
 import com.follysitou.authgate.service.JwtService;
+import com.follysitou.authgate.utils.TokenUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,6 +14,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -44,10 +46,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        final String jwt = authHeader.substring(7);
-
         // 2. Vérifier la blacklist (pour les access ET refresh tokens)
-        if (blackListedTokenRepository.existsById(jwt)) {
+        final String jwt = authHeader.substring(7);
+        String tokenHash = TokenUtils.sha256(jwt);
+        if (blackListedTokenRepository.existsByTokenHash(tokenHash)) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token révoqué");
             return;
         }
@@ -67,7 +69,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }
         }
-
         filterChain.doFilter(request, response);
     }
 }
