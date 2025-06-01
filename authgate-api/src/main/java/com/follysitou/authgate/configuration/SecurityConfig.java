@@ -15,6 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.header.writers.XXssProtectionHeaderWriter;
 
 @Configuration
@@ -49,9 +50,8 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        return http
-
-                .csrf(AbstractHttpConfigurer::disable) // Alternative : .ignoringRequestMatchers("/api/**") si besoin de CSRF ailleurs
+        // 1. Configuration de base (stateless, headers, etc.)
+        http
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .sessionManagement(session -> session
@@ -59,24 +59,43 @@ public class SecurityConfig {
                 .headers(headers -> headers
                         .httpStrictTransportSecurity(hsts -> hsts
                                 .includeSubDomains(true)
-                                .maxAgeInSeconds(31_536_000)) // 1 an
+                                .maxAgeInSeconds(31_536_000))
                         .xssProtection(xss -> xss
                                 .headerValue(XXssProtectionHeaderWriter.HeaderValue.ENABLED_MODE_BLOCK))
-                        .frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**",
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**",
-                                "/swagger-resources/**",
-                                "/swagger-ui.html").permitAll()
-                        .requestMatchers(
-                                "/api/users/**",
-                                 "/api/auth/unlock-account",
-                                "/api/auth/lock-account").hasAnyAuthority("user_manage")
-                        .anyRequest().authenticated())
-                .userDetailsService(authService)
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                        .frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin));
+
+        // 2. Configuration CSRF hybride
+        http.csrf(csrf -> csrf
+                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .ignoringRequestMatchers(
+                        "/api/auth/login",
+                        "/api/auth/refresh-token",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**"
+                        // ... autres endpoints publics
+                )
+                .requireCsrfProtectionMatcher(
+                        request -> {
+                            // Active CSRF uniquement pour /logout et endpoints sensibles
+                            String path = request.getRequestURI();
+                            return path.startsWith("/api/auth/logout") ||
+                                    path.startsWith("/api/sensitive-action");
+                        }
+                )
+        );
+
+        // 3. Autorisations
+        http.authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/auth/**", "/swagger-ui/**").permitAll()
+                .requestMatchers("/api/users/**").hasAuthority("user_manage")
+                .anyRequest().authenticated()
+        );
+
+        // 4. Filtres
+        http
                 .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
-                .build();
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
     }
 }

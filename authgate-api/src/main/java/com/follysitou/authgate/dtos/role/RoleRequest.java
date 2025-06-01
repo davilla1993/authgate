@@ -1,4 +1,4 @@
-package com.follysitou.authgate.dtos;
+package com.follysitou.authgate.dtos.role;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;

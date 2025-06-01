@@ -1,6 +1,6 @@
 package com.follysitou.authgate.service;
 
-import com.follysitou.authgate.dtos.*;
+import com.follysitou.authgate.dtos.auth.*;
 import com.follysitou.authgate.models.BlackListedToken;
 import com.follysitou.authgate.models.Permission;
 import com.follysitou.authgate.models.Role;
@@ -9,12 +9,9 @@ import com.follysitou.authgate.repository.BlackListedTokenRepository;
 import com.follysitou.authgate.repository.PermissionRepository;
 import com.follysitou.authgate.repository.RoleRepository;
 import com.follysitou.authgate.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;

@@ -48,6 +48,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // 2. Vérifier la blacklist (pour les access ET refresh tokens)
         final String jwt = authHeader.substring(7);
+
+        if (!jwtService.isTokenValid(jwt)) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token invalide");
+            return;
+        }
+
         String tokenHash = TokenUtils.sha256(jwt);
         if (blackListedTokenRepository.existsByTokenHash(tokenHash)) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token révoqué");

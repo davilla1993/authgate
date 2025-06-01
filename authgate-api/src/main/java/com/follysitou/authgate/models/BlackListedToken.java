@@ -1,12 +1,8 @@
 package com.follysitou.authgate.models;
 
 import com.follysitou.authgate.utils.TokenUtils;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.*;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.time.Instant;
 
@@ -16,6 +12,7 @@ import java.time.Instant;
 public class BlackListedToken {
 
     @Id
+    @Column(updatable = false, nullable = false, length = 150)
     private String tokenHash;
 
     private Instant expiryDate;

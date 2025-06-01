@@ -4,6 +4,7 @@ import com.follysitou.authgate.models.User;
 import com.follysitou.authgate.repository.BlackListedTokenRepository;
 import com.follysitou.authgate.repository.UserRepository;
 import com.follysitou.authgate.service.EmailService;
+import com.follysitou.authgate.service.RefreshTokenService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.SpringApplication;
@@ -13,6 +14,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @SpringBootApplication
 @RequiredArgsConstructor
@@ -20,6 +22,7 @@ public class AuthgateApplication {
 
 	private final EmailService emailService;
 	private final UserRepository userRepository;
+	private final RefreshTokenService refreshTokenService;
 	private final BlackListedTokenRepository blackListedTokenRepository;
 
 
@@ -47,4 +50,19 @@ public class AuthgateApplication {
 		});
 	}
 
+	@Scheduled(cron = "0 0 3 * * ?")
+	@Transactional
+	public void removeUnverifiedAccounts() {
+		LocalDateTime threshold = LocalDateTime.now().minusDays(30);
+		List<User> oldUnverified = userRepository.findAll()
+				.stream()
+				.filter(u -> !u.isEnabled() && u.getCreatedAt().isBefore(threshold))
+				.collect(Collectors.toList());
+		userRepository.deleteAll(oldUnverified);
+	}
+
+	@Scheduled(cron = "0 0 3 * * ?") // Tous les jours à 3h du matin
+	public void cleanExpiredRefreshTokens() {
+		refreshTokenService.cleanExpiredTokens();
+	}
 }

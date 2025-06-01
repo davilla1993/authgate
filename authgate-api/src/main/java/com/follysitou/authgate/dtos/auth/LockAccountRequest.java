@@ -1,4 +1,4 @@
-package com.follysitou.authgate.dtos;
+package com.follysitou.authgate.dtos.auth;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -8,13 +8,13 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class VerificationRequest {
+public class LockAccountRequest {
 
     @NotBlank
     @Email
     private String email;
 
     @NotBlank
-    @Size(min = 6, max = 6)
-    private String code;
+    @Size(min = 10, max = 500)
+    private String reason;
 }

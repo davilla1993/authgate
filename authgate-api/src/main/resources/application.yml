@@ -40,6 +40,9 @@ app:
   account:
     max-failed-attempts: 5
     lock-time-minutes: 60
+  security:
+    csrf:
+      logout-enabled: true
 
 springdoc:
   api-docs:

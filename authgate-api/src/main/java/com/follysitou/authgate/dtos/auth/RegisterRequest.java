@@ -1,4 +1,4 @@
-package com.follysitou.authgate.dtos;
+package com.follysitou.authgate.dtos.auth;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

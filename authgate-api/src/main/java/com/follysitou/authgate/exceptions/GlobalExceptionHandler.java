@@ -1,6 +1,6 @@
 package com.follysitou.authgate.exceptions;
 
-import com.follysitou.authgate.dtos.ApiResponse;
+import com.follysitou.authgate.dtos.auth.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
