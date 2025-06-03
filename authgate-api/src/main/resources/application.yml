@@ -9,6 +9,13 @@ spring:
     username: postgres
     password: toor
     driver-class-name: org.postgresql.Driver
+  cache:
+    caffeine:
+      spec: maximumSize=500,expireAfterWrite=30m
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 2MB
 
   jpa:
     hibernate:
@@ -43,6 +50,9 @@ app:
   security:
     csrf:
       logout-enabled: true
+  file:
+    upload-dir: ./photos
+  base-url: http://localhost:8080
 
 springdoc:
   api-docs:
@@ -56,3 +66,8 @@ logging:
     org:
       springframework:
         security: DEBUG
+
+management:
+  endpoint:
+    cache:
+      enabled: true

@@ -22,4 +22,10 @@ public class Permission {
     private String name;
 
     private String description;
+
+    @PrePersist
+    public void normalizeName() {
+        this.name = this.name.toUpperCase().replace(":", "_");
+        // Convertit "user:lock" en "USER_LOCK" pour compatibilité
+    }
 }

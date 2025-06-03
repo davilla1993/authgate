@@ -53,11 +53,6 @@ public class AuthController {
 
     private final BlackListedTokenRepository blackListedTokenRepository;
 
-
-
-    @Value("${app.account.lock-time-minutes}")
-    private int accountLockTimeMinutes;
-
     @Value("${app.security.csrf.logout-enabled:false}") // Valeur par défaut: false
     private boolean csrfEnabledForLogout;
 
@@ -201,99 +196,7 @@ public class AuthController {
         return ResponseEntity.ok(new AuthResponse(newAccessToken, null)); // Ne pas exposer le refresh token
     }
 
-    @PostMapping("/lock-account")
-    @PreAuthorize("hasAuthority('user_manage')")
-    public ResponseEntity<?> lockUserAccount(@Valid @RequestBody LockAccountRequest request,
-                                             @AuthenticationPrincipal UserDetails adminDetails) {
-        try {
 
-            // Récupérer l'email de l'admin connecté
-            String adminEmail = adminDetails.getUsername();
-
-            ApiResponse response = authService.lockUserAccount(
-                    request.getEmail(),
-                    request.getReason(),
-                    adminEmail);
-
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse(false, "Erreur : " + e.getMessage()));
-        }
-    }
-
-    @PreAuthorize("hasAuthority('user_manage')")
-    public ResponseEntity<?> unlockUserAccount(@RequestParam String email) {
-        try {
-            ApiResponse response = authService.unlockUserAccount(email);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse(false, "Erreur : " + e.getMessage()));
-        }
-    }
-
-    @GetMapping("/locked-accounts")
-    public List<User> getLockedAccounts() {
-        return userRepository.findByAccountNonLockedFalse();
-    }
-
-    @PostMapping("/revoke-token")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse> revokeToken(@RequestBody String token) {
-        if (!jwtService.isTokenValid(token)) {
-            return ResponseEntity.badRequest().body(new ApiResponse(false, "Token invalide"));
-        }
-
-        Instant expiry = jwtService.extractExpiration(token).toInstant();
-        blackListedTokenRepository.save(new BlackListedToken(token, expiry));
-
-        return ResponseEntity.ok(new ApiResponse(true, "Token révoqué avec succès"));
-    }
-
-    @GetMapping("/account-status/{email}")
-    @PreAuthorize("hasAuthority('user_manage')")
-    public ResponseEntity<?> getAccountStatus(@PathVariable @Email String email) {
-        try {
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("email", user.getEmail());
-            response.put("isLocked", !user.isAccountNonLocked());
-            response.put("status", user.isAccountNonLocked() ? "ACTIF" : "VERROUILLÉ");
-            response.put("lastLoginAttempt", user.getLastLoginAttempt());
-            response.put("passwordChangedAt", user.getPasswordChangedAt());
-
-            if (!user.isAccountNonLocked()) {
-                response.put("lockReason", user.getLockReason());
-                response.put("lockedSince", user.getManualLockTime());
-                response.put("lockedBy", user.getLockedBy());
-
-                if (user.getLockTime() != null) { // Verrouillage automatique
-                    response.put("autoUnlockTime", user.getLockTime().plusMinutes(accountLockTimeMinutes));
-                }
-            }
-
-            response.put("failedAttempts", user.getFailedAttempts());
-            response.put("lastUpdate", user.getUpdatedAt());
-
-            // Calcul de l'ancienneté du mot de passe (en jours)
-            if (user.getPasswordChangedAt() != null) {
-                long passwordAgeDays = ChronoUnit.DAYS.between(
-                        user.getPasswordChangedAt(),
-                        LocalDateTime.now()
-                );
-                response.put("passwordAgeDays", passwordAgeDays);
-            }
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse(false, "Erreur : " + e.getMessage()));
-        }
-    }
     private ResponseCookie createRefreshTokenCookie(String refreshToken) {
         return ResponseCookie.from("refreshToken", refreshToken)
                 .httpOnly(true)

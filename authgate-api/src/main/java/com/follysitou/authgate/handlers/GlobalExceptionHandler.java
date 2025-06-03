@@ -1,4 +1,4 @@
-package com.follysitou.authgate.exceptions;
+package com.follysitou.authgate.handlers;
 
 import com.follysitou.authgate.dtos.auth.ApiResponse;
 import org.springframework.http.HttpStatus;

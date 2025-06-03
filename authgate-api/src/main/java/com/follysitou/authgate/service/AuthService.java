@@ -290,24 +290,9 @@ public class AuthService implements UserDetailsService {
     }
 
     private void createAndAssignBasicRole(User user) {
-        // Vérifier si la permission de base existe déjà
-        Permission basicPermission = permissionRepository.findByName("basic_access")
-                .orElseGet(() -> {
-                    Permission newPermission = new Permission();
-                    newPermission.setName("basic_access");
-                    newPermission.setDescription("Accès basique à l'application");
-                    return permissionRepository.save(newPermission);
-                });
-
-        // Vérifier si le rôle de base existe déjà
         Role basicRole = roleRepository.findByName("ROLE_USER")
-                .orElseGet(() -> {
-                    Role newRole = new Role();
-                    newRole.setName("ROLE_USER");
-                    newRole.setDescription("Rôle utilisateur de base");
-                    newRole.getPermissions().add(basicPermission);
-                    return roleRepository.save(newRole);
-                });
+                .orElseThrow(() -> new RuntimeException(
+                        "Rôle ROLE_USER non trouvé - le système n'est pas correctement initialisé"));
 
         user.getRoles().add(basicRole);
     }

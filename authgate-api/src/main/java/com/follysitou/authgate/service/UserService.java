@@ -4,6 +4,7 @@ import com.follysitou.authgate.dtos.user.UserResponseDto;
 import com.follysitou.authgate.mappers.user.UserMapper;
 import com.follysitou.authgate.models.User;
 import com.follysitou.authgate.repository.UserRepository;
+import io.swagger.v3.oas.models.info.Contact;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -40,6 +41,14 @@ public class UserService {
         return users.map(UserMapper::mapToDto);
 
     }
+
+    public UserResponseDto getUserById(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        return UserMapper.mapToDto(user);
+    }
+
 
     public List<UserResponseDto> getOnlineUsers() {
         LocalDateTime threshold = LocalDateTime.now().minusMinutes(10);
@@ -99,4 +108,5 @@ public class UserService {
 
         log.info("ADMIN {} a réinitialisé le mot de passe de {}", adminEmail, user.getEmail());
     }
+
 }

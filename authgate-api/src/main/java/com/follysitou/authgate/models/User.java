@@ -1,6 +1,5 @@
 package com.follysitou.authgate.models;
 
-import com.follysitou.authgate.service.EmailService;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -10,7 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -53,6 +52,9 @@ public class User implements UserDetails {
     @NotBlank
     @Size(max = 120)
     private String password;
+
+    @Column(name = "photo_url", length = 255)
+    private String photoUrl;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
@@ -118,6 +120,7 @@ public class User implements UserDetails {
     }
 
     @Override
+    @Cacheable(value = "userPermissions", key = "#root.target.email")
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return this.roles.stream()
                 .flatMap(role -> role.getPermissions().stream())

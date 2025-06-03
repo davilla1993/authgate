@@ -5,6 +5,8 @@ import com.follysitou.authgate.models.Role;
 import com.follysitou.authgate.repository.PermissionRepository;
 import com.follysitou.authgate.repository.RoleRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.Set;
@@ -34,6 +36,13 @@ public class RoleService {
         return roleRepo.save(role);
     }
 
+    @Cacheable("roles")
+    public Role getRoleById(Long id) {
+        return roleRepo.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Role non trouvé"));
+    }
+
+    @CacheEvict(value = "roles", allEntries = true)
     public Role updateRolePermissions(Long roleId, Set<Long> permissionIds) {
         Role role = roleRepo.findById(roleId)
                 .orElseThrow(() -> new EntityNotFoundException("Role non trouvé : " + roleId));

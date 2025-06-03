@@ -16,16 +16,15 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmail(String email);
-
     boolean existsByEmail(String email);
-
     Optional<User> findByResetPasswordToken(String token);
-
     List<User> findByPasswordChangedAtBefore(LocalDateTime date);
-
     List<User> findByAccountNonLockedFalse();
-
     Page<User> findByAccountNonLockedFalse(Pageable pageable);
+
+    long countByEnabledTrue();
+    long countByAccountNonLockedFalse();
+    long countByCreatedAtAfter(LocalDateTime date);
 
     @Query("SELECT u FROM User u WHERE u.accountNonLocked = false OR u.manualLockTime IS NOT NULL")
     List<User> findAllLockedAccounts();
