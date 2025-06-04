@@ -12,22 +12,27 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class SwaggerConfig {
 
+    private static final String SCHEME_NAME = "BearerAuth";
+    private static final String SCHEME = "bearer";
+    private static final String BEARER_FORMAT = "JWT";
+
     @Bean
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
                         .title("AuthGate API")
                         .version("1.0")
-                        .description("API d'authentification et de gestion des utilisateurs")
-                        .contact(new Contact()
-                                .name("Support")
-                                .email("support@authgate.com")))
-                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
+                        .description("API de sécurité pour l'authentification et l'autorisation"))
+                .addSecurityItem(new SecurityRequirement().addList(SCHEME_NAME))
                 .components(new Components()
-                        .addSecuritySchemes("bearerAuth", new SecurityScheme()
-                                .name("bearerAuth")
-                                .type(SecurityScheme.Type.HTTP)
-                                .scheme("bearer")
-                                .bearerFormat("JWT")));
+                        .addSecuritySchemes(SCHEME_NAME,
+                                new SecurityScheme()
+                                        .name(SCHEME_NAME)
+                                        .type(SecurityScheme.Type.HTTP)
+                                        .scheme(SCHEME)
+                                        .bearerFormat(BEARER_FORMAT)
+                                        .in(SecurityScheme.In.HEADER)
+                                        .description("Entrez le token JWT dans ce champ. Exemple: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"))
+                );
     }
 }

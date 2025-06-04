@@ -37,11 +37,7 @@ public class RateLimitingFilter implements Filter {
             log.warn("Rate limiting triggered for IP: {}", request.getRemoteAddr());
             ((HttpServletResponse)response).setContentType("application/json");
             ((HttpServletResponse)response).setStatus(429);
-            response.getWriter().write(String.format(
-                    "{\"success\":false, \"message\":\"Trop de tentatives. Nous vous prions de réessayer plus tard. Merci}",
-                    probe.getNanosToWaitForRefill()/1_000_000_000,
-                    probe.getNanosToWaitForRefill()/1_000_000_000
-            ));
+            response.getWriter().write("{\"success\":false, \"message\":\"Trop de tentatives. Nous vous prions de réessayer plus tard. Merci\"}");
             return;
         }
         chain.doFilter(request, response);
