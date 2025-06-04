@@ -2,14 +2,13 @@ package com.follysitou.authgate.service;
 
 import com.follysitou.authgate.dtos.auth.*;
 import com.follysitou.authgate.models.BlackListedToken;
-import com.follysitou.authgate.models.Permission;
 import com.follysitou.authgate.models.Role;
 import com.follysitou.authgate.models.User;
 import com.follysitou.authgate.repository.BlackListedTokenRepository;
-import com.follysitou.authgate.repository.PermissionRepository;
 import com.follysitou.authgate.repository.RoleRepository;
 import com.follysitou.authgate.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.coyote.BadRequestException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -38,9 +37,11 @@ public class AuthService implements UserDetailsService {
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserSessionService userSessionService;
+    private final PasswordValidatorService passwordValidator;
     private final AuthenticationManager authenticationManager;
-    private final PermissionRepository permissionRepository;
     private final BlackListedTokenRepository blackListedTokenRepository;
+
 
     @Value("${app.verification.code-expiration}")
     private long codeExpirationTime;
@@ -48,17 +49,23 @@ public class AuthService implements UserDetailsService {
     @Value("${app.account.lock-time-minutes}")
     private int accountLockTimeMinutes;
 
-    public AuthService(RoleRepository roleRepository, UserRepository userRepository, PasswordEncoder passwordEncoder,
-                       JwtService jwtService, EmailService emailService, @Lazy AuthenticationManager authenticationManager,
-                       PermissionRepository permissionRepository, BlackListedTokenRepository blackListedTokenRepository) {
+    public AuthService(RoleRepository roleRepository,
+                       UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       JwtService jwtService,
+                       EmailService emailService, UserSessionService userSessionService,
+                       PasswordValidatorService passwordValidator,
+                       @Lazy AuthenticationManager authenticationManager,
+                       BlackListedTokenRepository blackListedTokenRepository) {
 
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.emailService = emailService;
+        this.userSessionService = userSessionService;
+        this.passwordValidator = passwordValidator;
         this.authenticationManager = authenticationManager;
-        this.permissionRepository = permissionRepository;
         this.blackListedTokenRepository = blackListedTokenRepository;
     }
 
@@ -69,6 +76,9 @@ public class AuthService implements UserDetailsService {
     }
 
     public ApiResponse register(RegisterRequest request) {
+
+        passwordValidator.validatePassword(request.getPassword());
+
         if (userRepository.existsByEmail(request.getEmail())) {
             return new ApiResponse(false, "Email déjà utilisé !");
         }
@@ -212,21 +222,39 @@ public class AuthService implements UserDetailsService {
         return new ApiResponse(true, "Instructions de réinitialisation envoyées par email");
     }
 
-    public ApiResponse resetPassword(ResetPasswordRequest request) {
+    public ApiResponse resetPassword(ResetPasswordRequest request) throws BadRequestException {
         User user = userRepository.findByResetPasswordToken(request.getToken())
                 .orElseThrow(() -> new RuntimeException("Token de réinitialisation invalide"));
 
         if (user.getResetPasswordTokenExpiry().isBefore(LocalDateTime.now())) {
+            user.setResetPasswordToken(null);
+            user.setResetPasswordTokenExpiry(null);
+            userRepository.save(user);
+
             throw new RuntimeException("Token de réinitialisation expiré");
         }
 
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        user.setResetPasswordToken(null);
-        user.setResetPasswordTokenExpiry(null);
-        user.recordPasswordChange();
-        userRepository.save(user);
+        try {
 
-        return new ApiResponse(true, "Mot de passe réinitialisé avec succès");
+            passwordValidator.validatePassword(request.getNewPassword());
+
+            user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+            user.setResetPasswordToken(null);
+            user.setResetPasswordTokenExpiry(null);
+            user.recordPasswordChange();
+            userRepository.save(user);
+
+            // Invalidation des sessions existantes
+            userSessionService.invalidateAllSessions(user.getId());
+
+            emailService.sendPasswordChangeNotification(user.getEmail(), user.getFirstName());
+
+            return new ApiResponse(true, "Mot de passe réinitialisé avec succès");
+
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException(e.getMessage());
+        }
+
     }
 
     public AuthResponse refreshToken(String oldRefreshToken) {

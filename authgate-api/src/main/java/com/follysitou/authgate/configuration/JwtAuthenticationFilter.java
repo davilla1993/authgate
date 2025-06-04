@@ -56,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String tokenHash = TokenUtils.sha256(jwt);
         if (blackListedTokenRepository.existsByTokenHash(tokenHash)) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token révoqué");
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Session invalide");
             return;
         }
 

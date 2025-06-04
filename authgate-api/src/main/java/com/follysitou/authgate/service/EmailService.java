@@ -106,5 +106,24 @@ public class EmailService {
                 "\n\nCordialement,\nL'équipe de sécurité");
         mailSender.send(email);
     }
+
+    public void sendPasswordChangeNotification(String to, String firstName) {
+
+        Context context = new Context();
+        context.setVariable("firstName", firstName);
+
+        String content = templateEngine.process("email/password-changed", context);
+
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, "UTF-8");
+        try {
+            helper.setTo(to);
+            helper.setSubject("Votre mot de passe a été changé");
+            helper.setText(content, true);
+            mailSender.send(message);
+        } catch (MessagingException e) {
+            throw new RuntimeException("Erreur lors de l'envoi de l'email", e);
+        }
+    }
 }
 
