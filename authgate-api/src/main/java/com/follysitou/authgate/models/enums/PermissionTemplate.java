@@ -21,5 +21,4 @@ public enum PermissionTemplate {
     PermissionTemplate(String permission) {
         this.permission = permission;
     }
-
 }

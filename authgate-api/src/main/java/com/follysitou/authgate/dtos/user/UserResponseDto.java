@@ -1,6 +1,5 @@
 package com.follysitou.authgate.dtos.user;
 
-import com.follysitou.authgate.models.User;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -8,7 +7,6 @@ import lombok.Setter;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 
 @Getter
 @Setter

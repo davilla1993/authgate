@@ -20,6 +20,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -181,6 +182,7 @@ public class AuthService implements UserDetailsService {
 
 
 
+    @Transactional
     public AuthResponse verifyCode(VerificationRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
@@ -222,6 +224,7 @@ public class AuthService implements UserDetailsService {
         return new ApiResponse(true, "Instructions de réinitialisation envoyées par email");
     }
 
+    @Transactional
     public ApiResponse resetPassword(ResetPasswordRequest request) throws BadRequestException {
         User user = userRepository.findByResetPasswordToken(request.getToken())
                 .orElseThrow(() -> new RuntimeException("Token de réinitialisation invalide"));

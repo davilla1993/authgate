@@ -19,6 +19,4 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
     @Cacheable("permissions")
     Optional<Permission> findByNameIgnoreCase(String name);
 
-
-
 }
