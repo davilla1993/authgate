@@ -96,8 +96,6 @@ public class AuthService implements UserDetailsService {
 
     public ApiResponse register(RegisterRequest request) {
 
-        passwordValidator.validatePassword(request.getPassword());
-
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ResourceAlreadyExistsException("Email already in use");
         }

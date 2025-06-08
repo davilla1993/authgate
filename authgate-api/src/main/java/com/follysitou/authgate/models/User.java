@@ -39,22 +39,14 @@ public class User extends Auditable implements UserDetails {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank
-    @Size(max = 50)
     private String firstName;
 
-    @NotBlank
-    @Size(max = 50)
     private String lastName;
 
-    @NotBlank
     @Email
-    @Size(max = 100)
     @Column(unique = true)
     private String email;
 
-    @NotBlank
-    @Size(max = 120)
     private String password;
 
     @Column(name = "photo_url", length = 255)

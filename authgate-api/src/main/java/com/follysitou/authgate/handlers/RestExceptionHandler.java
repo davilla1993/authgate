@@ -9,7 +9,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
-import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.util.Collections;
 import java.util.List;
@@ -17,7 +16,7 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 @Slf4j
-public class RestExceptionHandler extends ResponseEntityExceptionHandler {
+public class RestExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorDto> handleGenericException(Exception ex, WebRequest webRequest) {
@@ -165,21 +164,21 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     // Gérer les erreurs de validation de Spring (@Valid, @RequestBody)
-    protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
-                                                                  org.springframework.http.HttpHeaders headers,
-                                                                  HttpStatus status, WebRequest request) {
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    protected ResponseEntity<Object> MethodArgumentNotValidException(MethodArgumentNotValidException ex) {
         log.warn("MethodArgumentNotValidException: {}", ex.getMessage());
+
         List<String> errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .collect(Collectors.toList());
 
         final ErrorDto errorDto = ErrorDto.builder()
                 .code(ErrorCodes.VALIDATION_ERROR)
-                .httpCode(status.value())
+                .httpCode(HttpStatus.BAD_REQUEST.value())
                 .message("Data validation errors.")
                 .errors(errors)
                 .build();
 
-        return new ResponseEntity<>(errorDto, status);
+        return new ResponseEntity<>(errorDto, HttpStatus.BAD_REQUEST);
     }
 }

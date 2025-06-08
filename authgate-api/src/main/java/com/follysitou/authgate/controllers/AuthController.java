@@ -22,16 +22,13 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse> register(@Valid @RequestBody RegisterRequest registerRequest) {
-        try {
-            ApiResponse response = authService.register(registerRequest);
-            if (response.isSuccess()) {
-                return ResponseEntity.ok(response);
-            } else {
-                return ResponseEntity.badRequest().body(response);
-            }
-        } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body(new ApiResponse(false, "Error during registration : " + e.getMessage()));
+
+        ApiResponse response = authService.register(registerRequest);
+
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.badRequest().body(response);
         }
     }
 
