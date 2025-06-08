@@ -2,7 +2,6 @@ package com.follysitou.authgate.configuration;
 
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
@@ -22,7 +21,7 @@ public class SwaggerConfig {
                 .info(new Info()
                         .title("AuthGate API")
                         .version("1.0")
-                        .description("API de sécurité pour l'authentification et l'autorisation"))
+                        .description("Security API for authentication and authorization designed by carlogbossou93@gmail.com"))
                 .addSecurityItem(new SecurityRequirement().addList(SCHEME_NAME))
                 .components(new Components()
                         .addSecuritySchemes(SCHEME_NAME,
@@ -32,7 +31,7 @@ public class SwaggerConfig {
                                         .scheme(SCHEME)
                                         .bearerFormat(BEARER_FORMAT)
                                         .in(SecurityScheme.In.HEADER)
-                                        .description("Entrez le token JWT dans ce champ. Exemple: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"))
+                                        .description("Enter JWT token in the field. Example: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"))
                 );
     }
 }

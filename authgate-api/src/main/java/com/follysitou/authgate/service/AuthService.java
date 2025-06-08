@@ -1,16 +1,23 @@
 package com.follysitou.authgate.service;
 
 import com.follysitou.authgate.dtos.auth.*;
+import com.follysitou.authgate.exceptions.*;
 import com.follysitou.authgate.models.BlackListedToken;
+import com.follysitou.authgate.models.RefreshToken;
 import com.follysitou.authgate.models.Role;
 import com.follysitou.authgate.models.User;
 import com.follysitou.authgate.repository.BlackListedTokenRepository;
+import com.follysitou.authgate.repository.RefreshTokenRepository;
 import com.follysitou.authgate.repository.RoleRepository;
 import com.follysitou.authgate.repository.UserRepository;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.coyote.BadRequestException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -22,6 +29,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -35,14 +43,19 @@ public class AuthService implements UserDetailsService {
 
     private final JwtService jwtService;
     private final EmailService emailService;
-    private final RoleRepository roleRepository;
+    private final RoleService roleService;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserSessionService userSessionService;
+    private final RefreshTokenService refreshTokenService;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordValidatorService passwordValidator;
     private final AuthenticationManager authenticationManager;
     private final BlackListedTokenRepository blackListedTokenRepository;
 
+
+    @Value("${app.security.csrf.logout-enabled}")
+    private boolean csrfEnabledForLogout;
 
     @Value("${app.verification.code-expiration}")
     private long codeExpirationTime;
@@ -50,21 +63,26 @@ public class AuthService implements UserDetailsService {
     @Value("${app.account.lock-time-minutes}")
     private int accountLockTimeMinutes;
 
-    public AuthService(RoleRepository roleRepository,
-                       UserRepository userRepository,
+    public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
-                       EmailService emailService, UserSessionService userSessionService,
+                       EmailService emailService,
+                       RoleService roleService,
+                       UserSessionService userSessionService,
+                       RefreshTokenService refreshTokenService,
+                       RefreshTokenRepository refreshTokenRepository,
                        PasswordValidatorService passwordValidator,
                        @Lazy AuthenticationManager authenticationManager,
                        BlackListedTokenRepository blackListedTokenRepository) {
 
-        this.roleRepository = roleRepository;
+        this.roleService = roleService;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.emailService = emailService;
         this.userSessionService = userSessionService;
+        this.refreshTokenService = refreshTokenService;
+        this.refreshTokenRepository = refreshTokenRepository;
         this.passwordValidator = passwordValidator;
         this.authenticationManager = authenticationManager;
         this.blackListedTokenRepository = blackListedTokenRepository;
@@ -73,7 +91,7 @@ public class AuthService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("Utilisateur non trouvé : " + email));
+                .orElseThrow(() -> new EntityNotFoundException("User not found: " + email));
     }
 
     public ApiResponse register(RegisterRequest request) {
@@ -81,7 +99,7 @@ public class AuthService implements UserDetailsService {
         passwordValidator.validatePassword(request.getPassword());
 
         if (userRepository.existsByEmail(request.getEmail())) {
-            return new ApiResponse(false, "Email déjà utilisé !");
+            throw new ResourceAlreadyExistsException("Email already in use");
         }
 
         User user = new User(
@@ -97,13 +115,13 @@ public class AuthService implements UserDetailsService {
         user.setVerificationCodeExpiry(LocalDateTime.now().plusSeconds(codeExpirationTime / 1000));
 
         // Créer et attribuer le rôle de base
-        createAndAssignBasicRole(user);
+        roleService.createAndAssignBasicRole(user);
         userRepository.save(user);
 
         // Envoyer le code de vérification par email
         emailService.sendVerificationCode(user.getEmail(), verificationCode, user.getFirstName());
 
-        return new ApiResponse(true, "Un code de vérification a été envoyé à votre adresse email");
+        return new ApiResponse(true, "A verification code has been sent to your email address");
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -115,7 +133,7 @@ public class AuthService implements UserDetailsService {
                 // Vérifier si le compte est verrouillé
                 if (user.isAccountLocked()) {
                     if (user.getLockTime().plusMinutes(accountLockTimeMinutes).isAfter(LocalDateTime.now())) {
-                        throw new RuntimeException("Votre compte est verrouillé. Veuillez réessayer plus tard.");
+                        throw new BusinessException("Your account is locked. Please try again later.");
                     } else {
                         user.unlockAccount();
                         userRepository.save(user);
@@ -129,7 +147,7 @@ public class AuthService implements UserDetailsService {
 
                 // Réinitialiser les tentatives échouées après succès
                 user.setFailedAttempts(0);
-                user.setLastLoginAttempt(LocalDateTime.now());
+                user.setLastActivity(Instant.now());
                 userRepository.save(user);
 
                 User authenticatedUser = (User) authentication.getPrincipal();
@@ -147,13 +165,13 @@ public class AuthService implements UserDetailsService {
                             authenticatedUser.getEmail(),
                             verificationCode, authenticatedUser.getFirstName());
 
-                    return new AuthResponse("Un code de vérification a été envoyé à votre email", true);
+                    return new AuthResponse("A verification code has been sent to your email address", true);
                 } else {
-                    return new AuthResponse("Un code de vérification a déjà été envoyé", true);
+                    return new AuthResponse("A verification code has already been sent", true);
                 }
             }
 
-            throw new RuntimeException("Utilisateur non trouvé");
+            throw new EntityNotFoundException("User not found");
 
         } catch (BadCredentialsException e) {
             userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
@@ -173,10 +191,10 @@ public class AuthService implements UserDetailsService {
                 }
             });
 
-            throw new RuntimeException("Email ou mot de passe incorrect");
+            throw new InvalidParameterException("Invalid email or password");
 
         } catch (Exception e) {
-            throw new RuntimeException("Erreur lors de la connexion: " + e.getMessage());
+            throw new BusinessException("Login error: " + e.getMessage());
         }
     }
 
@@ -185,12 +203,12 @@ public class AuthService implements UserDetailsService {
     @Transactional
     public AuthResponse verifyCode(VerificationRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
         if (user.getVerificationCode() == null ||
                 !user.getVerificationCode().equals(request.getCode()) ||
                 user.getVerificationCodeExpiry().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Code de vérification invalide ou expiré");
+            throw new InvalidOperationException("Invalid or expired verification code");
         }
 
         // Nettoyer le code de vérification
@@ -212,7 +230,7 @@ public class AuthService implements UserDetailsService {
 
     public ApiResponse forgotPassword(ForgotPasswordRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé avec cet email"));
+                .orElseThrow(() -> new EntityNotFoundException("User not found with this email"));
 
         String resetToken = UUID.randomUUID().toString();
         user.setResetPasswordToken(resetToken);
@@ -221,20 +239,20 @@ public class AuthService implements UserDetailsService {
 
         emailService.sendPasswordResetToken(user.getEmail(), resetToken);
 
-        return new ApiResponse(true, "Instructions de réinitialisation envoyées par email");
+        return new ApiResponse(true, "Reset instructions sent by email");
     }
 
     @Transactional
     public ApiResponse resetPassword(ResetPasswordRequest request) throws BadRequestException {
         User user = userRepository.findByResetPasswordToken(request.getToken())
-                .orElseThrow(() -> new RuntimeException("Token de réinitialisation invalide"));
+                .orElseThrow(() -> new InvalidOperationException("Invalid reset token"));
 
         if (user.getResetPasswordTokenExpiry().isBefore(LocalDateTime.now())) {
             user.setResetPasswordToken(null);
             user.setResetPasswordTokenExpiry(null);
             userRepository.save(user);
 
-            throw new RuntimeException("Token de réinitialisation expiré");
+            throw new InvalidOperationException("Reset token has expired");
         }
 
         try {
@@ -252,7 +270,7 @@ public class AuthService implements UserDetailsService {
 
             emailService.sendPasswordChangeNotification(user.getEmail(), user.getFirstName());
 
-            return new ApiResponse(true, "Mot de passe réinitialisé avec succès");
+            return new ApiResponse(true, "Password reset successfully");
 
         } catch (IllegalArgumentException e) {
             throw new BadRequestException(e.getMessage());
@@ -260,31 +278,50 @@ public class AuthService implements UserDetailsService {
 
     }
 
-    public AuthResponse refreshToken(String oldRefreshToken) {
-        // 1. Valider l'ancien token
-        String email = jwtService.extractUsername(oldRefreshToken);
-        User user = (User) loadUserByUsername(email);
+    @Transactional
+    public AuthResponse refreshToken(String oldRefreshToken, HttpServletResponse response) {
+        // 1. Validate the old refresh token (from persistent storage)
+        RefreshToken storedOldToken = refreshTokenService.verifyRefreshToken(oldRefreshToken);
+        User user = storedOldToken.getUser();
 
-        if (!jwtService.validateToken(oldRefreshToken, user)) {
-            throw new RuntimeException("Refresh token invalide");
-        }
+        // 2. Revoke the old refresh token in the database
+        storedOldToken.setRevoked(true);
+        storedOldToken.setRevoked(true); // Set revocation timestamp
+        refreshTokenRepository.save(storedOldToken);
 
-        // 2. Blacklister l'ancien token
+        // 3. (Optional but recommended for an extra layer of security) Blacklist the raw old refresh token string
+        // This prevents the raw string from being reused even if the DB record is somehow missed
         blackListedTokenRepository.save(new BlackListedToken(oldRefreshToken, Instant.now()));
 
-        // 3. Générer nouveaux tokens
+        // 4. Generate new Access Token
         String newAccessToken = jwtService.generateToken(user);
-        String newRefreshToken = jwtService.generateRefreshToken(user);
 
-        return new AuthResponse(newAccessToken, newRefreshToken);
+        // 5. Generate a new Refresh Token and save it
+        RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user);
+
+        // 6. Add the new refresh token to a HttpOnly cookie
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                createRefreshTokenCookie(newRefreshToken.getTokenHash()).toString());
+
+        return new AuthResponse(newAccessToken, null);
+    }
+
+    private ResponseCookie createRefreshTokenCookie(String refreshToken) {
+        return ResponseCookie.from("refreshToken", refreshToken)
+                .httpOnly(true)
+                .secure(true) // En production uniquement avec HTTPS
+                .sameSite("Strict")
+                .maxAge(Duration.ofDays(30))
+                .path("/api/auth/refresh-token")
+                .build();
     }
 
     public ApiResponse lockUserAccount(String email, String reason, String adminEmail) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
         if (user.isAccountLocked()) {
-            return new ApiResponse(false, "Le compte est déjà verrouillé");
+            throw new BusinessException("Account is already locked");
         }
 
         user.manualLock(reason, adminEmail);
@@ -299,15 +336,15 @@ public class AuthService implements UserDetailsService {
                 reason
         );
 
-        return new ApiResponse(true, "Compte verrouillé avec succès");
+        return new ApiResponse(true, "Account successfully locked");
     }
 
     public ApiResponse unlockUserAccount(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
         if (!user.isAccountLocked()) {
-            return new ApiResponse(false, "Le compte n'est pas verrouillé");
+            throw new BusinessException("Account is not locked");
         }
 
         user.unlockAccount();
@@ -317,15 +354,58 @@ public class AuthService implements UserDetailsService {
                 "Votre compte a été déverrouillé par un administrateur. " +
                         "Vous pouvez maintenant vous connecter normalement.");
 
-        return new ApiResponse(true, "Compte déverrouillé avec succès");
+        return new ApiResponse(true, "Account successfully unlocked");
     }
 
-    private void createAndAssignBasicRole(User user) {
-        Role basicRole = roleRepository.findByName("ROLE_USER")
-                .orElseThrow(() -> new RuntimeException(
-                        "Rôle ROLE_USER non trouvé - le système n'est pas correctement initialisé"));
+    public ApiResponse logout(HttpServletRequest request,
+                              HttpServletResponse response,
+                              String refreshToken,
+                              String csrfHeader,
+                              String csrfCookie) {
 
-        user.getRoles().add(basicRole);
+        // Vérification CSRF
+        if (csrfEnabledForLogout && (csrfHeader == null || !csrfHeader.equals(csrfCookie))) {
+            log.warn("Logout attempt without valid CSRF token - IP: {}", request.getRemoteAddr());
+            return new ApiResponse(false, "Missing or invalid CSRF token");
+        }
+
+        // Extraction du token
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return new ApiResponse(false, "Missing authentication token");
+        }
+        String accessToken = authHeader.substring(7);
+
+        try {
+            // Invalidation access token
+            if (jwtService.isTokenValid(accessToken)) {
+                Instant expiry = jwtService.extractExpiration(accessToken).toInstant();
+                blackListedTokenRepository.save(new BlackListedToken(accessToken, expiry));
+            }
+
+            // Invalidation refresh token
+            if (refreshToken != null && jwtService.isTokenValid(refreshToken)) {
+                refreshTokenService.revokeRefreshToken(refreshToken);
+                clearRefreshTokenCookie(response);
+            }
+
+            String username = jwtService.extractUsername(accessToken);
+            log.info("User successfully logged out : {}", username);
+
+            return new ApiResponse(true, "Logout successful");
+
+        } catch (Exception e) {
+            log.error("Erreur lors du logout", e);
+            return new ApiResponse(false, "Internal error while logging out");
+        }
+    }
+
+    private void clearRefreshTokenCookie(HttpServletResponse response) {
+        ResponseCookie cleanCookie = ResponseCookie.from("refreshToken", "")
+                .maxAge(0)
+                .path("/api/auth")
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cleanCookie.toString());
     }
 
     private String generateVerificationCode() {

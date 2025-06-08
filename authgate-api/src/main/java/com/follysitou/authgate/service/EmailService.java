@@ -1,5 +1,6 @@
 package com.follysitou.authgate.service;
 
+import com.follysitou.authgate.exceptions.EmailSendingException;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -36,9 +37,29 @@ public class EmailService {
             helper.setText(content, true);
             mailSender.send(message);
         } catch (MessagingException e) {
-            throw new RuntimeException("Erreur lors de l'envoi de l'email", e);
+            throw new EmailSendingException("Error sending email", e);
         }
     }
+
+    public void sendAccountCreatedByAdmin(String to, String firstName) {
+        Context context = new Context();
+        context.setVariable("firstName", firstName);
+        context.setVariable("loginUrl", "http://localhost:8080/api/auth/login");
+
+        String content = templateEngine.process("email/account-created", context);
+
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, "UTF-8");
+        try {
+            helper.setTo(to);
+            helper.setSubject("Votre compte a été créé");
+            helper.setText(content, true);
+            mailSender.send(message);
+        } catch (MessagingException e) {
+            throw new EmailSendingException("Error sending email", e);
+        }
+    }
+
 
     public void sendPasswordResetToken(String to, String token) {
         SimpleMailMessage message = new SimpleMailMessage();
@@ -72,7 +93,7 @@ public class EmailService {
             helper.setText(content, true);
             mailSender.send(message);
         } catch (MessagingException e) {
-            throw new RuntimeException("Erreur lors de l'envoi de l'email", e);
+            throw new EmailSendingException("Error sending email", e);
         }
     }
 
@@ -122,7 +143,7 @@ public class EmailService {
             helper.setText(content, true);
             mailSender.send(message);
         } catch (MessagingException e) {
-            throw new RuntimeException("Erreur lors de l'envoi de l'email", e);
+            throw new EmailSendingException("Error sending email", e);
         }
     }
 }

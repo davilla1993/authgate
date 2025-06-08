@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity; // NOUVEAU : Ajout pour @PreAuthorize
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
@@ -22,7 +22,7 @@ import org.springframework.security.web.header.writers.XXssProtectionHeaderWrite
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity // Permet l'utilisation des annotations de sécurité au niveau des méthodes (ex: @PreAuthorize)
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final AuthService authService;
@@ -109,7 +109,7 @@ public class SecurityConfig {
 
         // 3. Autorisations
         http.authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/users/**").hasAnyRole("ADMIN, USER")
+                .requestMatchers("/api/users/**").hasRole("USER")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated() // Toutes les autres requêtes nécessitent une authentification
         );

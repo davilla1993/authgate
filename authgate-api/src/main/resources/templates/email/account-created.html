@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Compte créé - AuthGate</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #ffffff;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+      line-height: 1.6;
+    }
+
+    .content {
+      max-width: 600px;
+    }
+
+    .header h1 {
+      color: #27ae60;
+      font-size: 22px;
+      margin-bottom: 20px;
+    }
+
+    .highlight {
+      font-weight: bold;
+      color: #2c3e50;
+    }
+
+    .footer {
+      margin-top: 40px;
+      font-size: 13px;
+      color: #888;
+    }
+
+    .credentials {
+      background-color: #f9f9f9;
+      padding: 10px;
+      border-left: 4px solid #27ae60;
+      margin: 20px 0;
+    }
+
+    .credentials p {
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+<div class="content">
+  <div class="header">
+    <h1>✅ Compte créé avec succès - AuthGate</h1>
+  </div>
+
+  <p>Bonjour Mme/M. &nbsp;&nbsp;<strong th:text="${firstName}"></strong>,</p>
+
+  <p>Un administrateur de la plateforme <strong>AuthGate</strong> vient de créer un compte pour vous.</p>
+
+  <p>Pour accéder à votre compte, cliquez sur le lien suivant :</p>
+  <p>
+    <a th:href="${loginUrl}" style="color: #27ae60;" target="_blank">Connexion à AuthGate</a>
+  </p>
+
+  <p>Pour des raisons de sécurité, nous vous recommandons fortement de changer votre mot de passe lors de votre première connexion.</p>
+
+  <p>Si vous avez des questions ou si vous n’êtes pas concerné par cette création de compte, merci de contacter notre support.</p>
+
+  <div class="footer">
+    <p>&copy; 2025 AuthGate — Sécurité et confiance avant tout.</p>
+  </div>
+</div>
+</body>
+</html>

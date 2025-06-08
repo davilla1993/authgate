@@ -1,5 +1,7 @@
 package com.follysitou.authgate.service;
 
+import com.follysitou.authgate.exceptions.BusinessException;
+import com.follysitou.authgate.exceptions.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -40,7 +42,7 @@ public class FileStorageService {
 
             return filename;
         } catch (IOException e) {
-            throw new RuntimeException("Échec du stockage du fichier", e);
+            throw new BusinessException("Failed to store file: " + e.getMessage());
         }
     }
 
@@ -49,7 +51,7 @@ public class FileStorageService {
             Path filePath = Paths.get(uploadDir).resolve(filename).normalize();
             Files.deleteIfExists(filePath);
         } catch (IOException e) {
-            throw new RuntimeException("Échec de la suppression du fichier", e);
+            throw new BusinessException("Failed to delete file: " + e.getMessage());
         }
     }
 
@@ -61,10 +63,10 @@ public class FileStorageService {
             if (resource.exists() && resource.isReadable()) {
                 return resource;
             } else {
-                throw new RuntimeException("Fichier non trouvé ou illisible");
+                throw new EntityNotFoundException("File not found or unreadable");
             }
         } catch (IOException e) {
-            throw new RuntimeException("Échec du chargement du fichier", e);
+            throw new BusinessException("Failed to load file: " + e.getMessage());
         }
     }
 }

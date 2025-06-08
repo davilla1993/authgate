@@ -1,10 +1,12 @@
 package com.follysitou.authgate.models;
 
+import com.follysitou.authgate.audit.Auditable;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.envers.Audited;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -14,8 +16,9 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Audited
 @Table(name = "roles")
-public class Role {
+public class Role extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

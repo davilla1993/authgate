@@ -3,8 +3,11 @@ package com.follysitou.authgate.controllers;
 
 import com.follysitou.authgate.dtos.auth.ApiResponse;
 import com.follysitou.authgate.dtos.auth.LockAccountRequest;
+import com.follysitou.authgate.dtos.auth.RegisterRequest;
 import com.follysitou.authgate.dtos.role.RoleRequest;
+import com.follysitou.authgate.dtos.user.AccountStatusResponseDto;
 import com.follysitou.authgate.dtos.user.UserResponseDto;
+import com.follysitou.authgate.exceptions.EntityNotFoundException;
 import com.follysitou.authgate.mappers.user.UserMapper;
 import com.follysitou.authgate.models.BlackListedToken;
 import com.follysitou.authgate.models.Role;
@@ -50,9 +53,16 @@ public class AdminController {
     private final JwtService jwtService;
     private final BlackListedTokenRepository blackListedTokenRepository;
 
+    //   +++++++++++++++++++++++++++++++++++++++ User Management ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    // User Management Endpoints
-  //  @PreAuthorize("(hasRole('ROLE_USER') or hasRole('ROLE_ADMIN')) and hasAuthority('account_status:view')")
+    @PostMapping("/users")
+    @PreAuthorize("hasAuthority('user:create')")
+    public ResponseEntity<ApiResponse> createUserByAdmin(@RequestBody RegisterRequest registerRequest) {
+            ApiResponse newUser = userService.createUserByAdmin(registerRequest);
+
+            return ResponseEntity.ok(newUser);
+    }
+
 
     @GetMapping("/users")
     @PreAuthorize("hasAuthority('user:read')")
@@ -61,153 +71,123 @@ public class AdminController {
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
+
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
         return ResponseEntity.ok(userService.getAllUsers(active, search, pageable));
     }
 
     @GetMapping("/users/online")
     @PreAuthorize("hasAuthority('user:read')")
-    public ResponseEntity<List<UserResponseDto>> getOnlineUsers() {
-        return ResponseEntity.ok(userService.getOnlineUsers());
-    }
+    public ResponseEntity<Page<UserResponseDto>> getOnlineUsers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
 
-    @GetMapping("/users/locked")
-    @PreAuthorize("hasAuthority('user:read')")
-    public ResponseEntity<List<UserResponseDto>> getLockedAccounts() {
-        List<User> lockedUsers = userRepository.findAllLockedAccounts();
-        return ResponseEntity.ok(lockedUsers.stream()
-                .map(UserMapper::mapToDto)
-                .collect(Collectors.toList()));
+        Pageable pageable = PageRequest.of(page, size, Sort.by("lastActivity").descending());
+        Page<UserResponseDto> result = userService.getOnlineUsers(pageable);
+        return ResponseEntity.ok(result);
     }
 
     @PutMapping("/users/{id}")
     @PreAuthorize("hasAuthority('user:update')")
     public ResponseEntity<UserResponseDto> updateUser(
             @PathVariable Long id,
-            @RequestBody Map<String, Object> updates,
-            @AuthenticationPrincipal UserDetails admin) {
-        UserResponseDto updated = userService.updateUser(id, updates, admin.getUsername());
+            @RequestBody Map<String, Object> updates) {
+
+        UserResponseDto updated = userService.updateUser(id, updates);
+
         return ResponseEntity.ok(updated);
     }
 
-    @DeleteMapping("/users/{id}")
-    @PreAuthorize("hasAuthority('user:delete')")
-    public ResponseEntity<?> deleteUser(
-            @PathVariable Long id,
-            @AuthenticationPrincipal UserDetails admin) {
-        userService.deleteUser(id, admin.getUsername());
-        return ResponseEntity.ok(new ApiResponse(true, "Utilisateur supprimé"));
+    //   +++++++++++++++++++++++++++++++++++++++ Accounts Management ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    @GetMapping("/users/locked")
+    @PreAuthorize("hasAuthority('user:account-control')")
+    public ResponseEntity<Page<UserResponseDto>> getLockedAccounts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("lastActivity").descending());
+        Page<UserResponseDto> lockedUsers = userRepository.findAllLockedAccounts(pageable);
+
+        return ResponseEntity.ok(lockedUsers);
     }
 
-    @PutMapping("/users/{id}/disable")
-    @PreAuthorize("hasAuthority('user:lock')")
-    public ResponseEntity<?> disableUser(
-            @PathVariable Long id,
-            @AuthenticationPrincipal UserDetails admin) {
-        userService.disableUser(id, admin.getUsername());
-        return ResponseEntity.ok(new ApiResponse(true, "Utilisateur désactivé"));
-    }
+    @GetMapping("/users/{email}/status")
+    @PreAuthorize("hasAuthority('user:account-control')")
+    public ResponseEntity<AccountStatusResponseDto> getAccountStatus(@PathVariable @Email String email) {
 
-    @PutMapping("/users/{id}/enable")
-    @PreAuthorize("hasAuthority('user:unlock')")
-    public ResponseEntity<?> enableUser(
-            @PathVariable Long id,
-            @AuthenticationPrincipal UserDetails admin) {
-        userService.enableUser(id, admin.getUsername());
-        return ResponseEntity.ok(new ApiResponse(true, "Utilisateur activé"));
-    }
+        AccountStatusResponseDto response = userService.getUserAccountStatus(email);
 
-    @PutMapping("/users/{id}/reset-password")
-    @PreAuthorize("hasAuthority('user:update')")
-    public ResponseEntity<?> resetPasswordByAdmin(
-            @PathVariable Long id,
-            @RequestParam String newPassword,
-            @AuthenticationPrincipal UserDetails admin) {
-        userService.resetPassword(id, newPassword, admin.getUsername());
-        return ResponseEntity.ok(new ApiResponse(true, "Mot de passe réinitialisé"));
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/users/lock")
-    @PreAuthorize("hasAuthority('user:lock')")
-    public ResponseEntity<?> lockUserAccount(
-            @Valid @RequestBody LockAccountRequest request,
-            @AuthenticationPrincipal UserDetails admin) {
-        ApiResponse response = authService.lockUserAccount(
-                request.getEmail(),
-                request.getReason(),
-                admin.getUsername());
+    @PreAuthorize("hasAuthority('user:account-control')")
+    public ResponseEntity<?> lockUserAccount( @Valid @RequestBody LockAccountRequest request,
+                                                @AuthenticationPrincipal UserDetails adminEmail) {
+
+        ApiResponse response = authService.lockUserAccount(request.getEmail(), request.getReason(),
+                adminEmail.getUsername());
+
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/users/unlock")
-    @PreAuthorize("hasAuthority('user:unlock')")
-    public ResponseEntity<?> unlockUserAccount(
+    @PreAuthorize("hasAuthority('user:account-control')")
+    public ResponseEntity<ApiResponse> unlockUserAccount(
             @RequestParam String email) {
         ApiResponse response = authService.unlockUserAccount(email);
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/users/{email}/status")
-    @PreAuthorize("hasAuthority('user:read')")
-    public ResponseEntity<?> getAccountStatus(@PathVariable @Email String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("email", user.getEmail());
-        response.put("isLocked", !user.isAccountNonLocked());
-        response.put("status", user.isAccountNonLocked() ? "ACTIF" : "VERROUILLÉ");
-        response.put("lastLoginAttempt", user.getLastLoginAttempt());
-        response.put("passwordChangedAt", user.getPasswordChangedAt());
-
-        if (!user.isAccountNonLocked()) {
-            response.put("lockReason", user.getLockReason());
-            response.put("lockedSince", user.getManualLockTime());
-            response.put("lockedBy", user.getLockedBy());
-        }
-
-        response.put("failedAttempts", user.getFailedAttempts());
-        response.put("lastUpdate", user.getUpdatedAt());
-
-        if (user.getPasswordChangedAt() != null) {
-            long passwordAgeDays = ChronoUnit.DAYS.between(
-                    user.getPasswordChangedAt(),
-                    LocalDateTime.now());
-            response.put("passwordAgeDays", passwordAgeDays);
-        }
-
-        return ResponseEntity.ok(response);
-    }
-
-    // Role Management Endpoints
-
+    //   +++++++++++++++++++++++++++++++++++++++ Role Management ++++++++++++++++++++++++++++++++++++++++++++++++++++++
     @PostMapping("/roles")
     @PreAuthorize("hasAuthority('role:create')")
     public ResponseEntity<Role> createRole(@RequestBody RoleRequest request) {
         Role role = roleService.createRole(request.getName(), request.getPermissionIds());
+
         return ResponseEntity.ok(role);
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAuthority('role:read')")
+    public ResponseEntity<List<Role>> getAllRoles() {
+        return ResponseEntity.ok(roleService.getAllRoles());
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('role:read')")
+    public ResponseEntity<Role> getRoleById(@PathVariable Long id) {
+        return ResponseEntity.ok(roleService.getRoleById(id));
     }
 
     @PutMapping("/roles/{roleId}/permissions")
     @PreAuthorize("hasAuthority('role:update')")
-    public ResponseEntity<Role> updateRolePermissions(
-            @PathVariable Long roleId,
-            @RequestBody Set<Long> permissionIds) {
+    public ResponseEntity<Role> updateRolePermissions(@PathVariable Long roleId,
+                                                      @RequestBody Set<Long> permissionIds) {
+
         Role role = roleService.updateRolePermissions(roleId, permissionIds);
         return ResponseEntity.ok(role);
     }
 
     @PostMapping("/roles/assign")
     @PreAuthorize("hasAuthority('role:assign')")
-    public ResponseEntity<?> assignRoleToUser(
-            @RequestParam Long userId,
-            @RequestParam Long roleId) {
-        // Implémentation à ajouter dans RoleService
-        return ResponseEntity.ok(new ApiResponse(true, "Rôle assigné avec succès"));
+    public ResponseEntity<ApiResponse> updateUserRoles( @RequestParam Long userId, @RequestParam Set<Long> roleId) {
+
+        userService.updateUserRole(userId, roleId);
+        return ResponseEntity.ok(new ApiResponse(true, "Role successfully assigned"));
     }
 
-    // System Management Endpoints
+    @DeleteMapping("/{roleId}")
+    @PreAuthorize("hasAuthority('role:delete')")
+    public ResponseEntity<ApiResponse> deleteRole(@PathVariable Long roleId) {
+        roleService.deleteRole(roleId);
 
+        return ResponseEntity.ok(new ApiResponse(true, "Role deleted successfully"));
+    }
+
+    //   +++++++++++++++++++++++++++++++++++++++ System Management ++++++++++++++++++++++++++++++++++++++++++++++++++++++
     @GetMapping("/system/stats")
     @PreAuthorize("hasAuthority('system:read')")
     public ResponseEntity<Map<String, Object>> getSystemStats() {
@@ -215,7 +195,9 @@ public class AdminController {
         stats.put("totalUsers", userRepository.count());
         stats.put("activeUsers", userRepository.countByEnabledTrue());
         stats.put("lockedUsers", userRepository.countByAccountNonLockedFalse());
+        stats.put("onLineUsers", userRepository.countByOnlineTrue());
         stats.put("recentUsers", userRepository.countByCreatedAtAfter(LocalDateTime.now().minusDays(7)));
+
         return ResponseEntity.ok(stats);
     }
 
@@ -223,12 +205,12 @@ public class AdminController {
     @PreAuthorize("hasAuthority('token:revoke')")
     public ResponseEntity<ApiResponse> revokeToken(@RequestBody String token) {
         if (!jwtService.isTokenValid(token)) {
-            return ResponseEntity.badRequest().body(new ApiResponse(false, "Token invalide"));
+            return ResponseEntity.badRequest().body(new ApiResponse(false, "Invalid token"));
         }
 
         Instant expiry = jwtService.extractExpiration(token).toInstant();
         blackListedTokenRepository.save(new BlackListedToken(token, expiry));
 
-        return ResponseEntity.ok(new ApiResponse(true, "Token révoqué avec succès"));
+        return ResponseEntity.ok(new ApiResponse(true, "Token successfully revoked"));
     }
 }

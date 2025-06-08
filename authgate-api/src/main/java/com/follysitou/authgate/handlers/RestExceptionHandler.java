@@ -26,7 +26,7 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
         final ErrorDto errorDto = ErrorDto.builder()
                 .code(ErrorCodes.UNKNOWN_ERROR)
                 .httpCode(internalServerError.value())
-                .message("Une erreur inattendue est survenue. Veuillez réessayer plus tard.")
+                .message("An unexpected error has occurred. Please try again later.")
                 .errors(Collections.singletonList(ex.getMessage()))
                 .build();
         return new ResponseEntity<>(errorDto, internalServerError);
@@ -124,6 +124,19 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
         return new ResponseEntity<>(errorDto, conflict);
     }
 
+    @ExceptionHandler(EmailSendingException.class)
+    public ResponseEntity<ErrorDto> handleEmailSendingException(EmailSendingException exception, WebRequest webRequest){
+        log.warn("EmailSendingException: {}", exception.getMessage());
+        final HttpStatus serverError = HttpStatus.INTERNAL_SERVER_ERROR; // Statut 500
+        final ErrorDto errorDto = ErrorDto.builder()
+                .code(exception.getErrorCode())
+                .httpCode(serverError.value())
+                .message(exception.getMessage())
+                .errors(exception.getErrors())
+                .build();
+        return new ResponseEntity<>(errorDto, serverError);
+    }
+
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<ErrorDto> handleValidationException(ValidationException exception, WebRequest webRequest){
         log.warn("ValidationException: {}", exception.getMessage());
@@ -145,8 +158,8 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
         final ErrorDto errorDto = ErrorDto.builder()
                 .code(ErrorCodes.BAD_CREDENTIALS)
                 .httpCode(badRequest.value())
-                .message("Login et/ou mot de passe incorrects")
-                .errors(Collections.singletonList("Login et/ou mot de passe incorrects"))
+                .message("Incorrect login and/or password")
+                .errors(Collections.singletonList("Incorrect login and/or password"))
                 .build();
         return new ResponseEntity<>(errorDto, badRequest);
     }
@@ -163,7 +176,7 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
         final ErrorDto errorDto = ErrorDto.builder()
                 .code(ErrorCodes.VALIDATION_ERROR)
                 .httpCode(status.value())
-                .message("Erreurs de validation des données.")
+                .message("Data validation errors.")
                 .errors(errors)
                 .build();
 

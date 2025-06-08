@@ -1,5 +1,7 @@
 package com.follysitou.authgate.service;
 
+import com.follysitou.authgate.exceptions.UnauthorizedException;
+import com.follysitou.authgate.handlers.ErrorCodes;
 import com.follysitou.authgate.models.RefreshToken;
 import com.follysitou.authgate.models.User;
 import com.follysitou.authgate.repository.RefreshTokenRepository;
@@ -41,10 +43,10 @@ public class RefreshTokenService {
     public RefreshToken verifyRefreshToken(String token) {
         String tokenHash = TokenUtils.sha256(token);
         RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(tokenHash)
-                .orElseThrow(() -> new RuntimeException("Refresh token invalide"));
+                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token", ErrorCodes.TOKEN_INVALID));
 
         if (!refreshToken.isValid()) {
-            throw new RuntimeException("Refresh token révoqué ou expiré");
+            throw new UnauthorizedException("Refresh token revoked or expired", ErrorCodes.REFRESH_TOKEN_INVALID);
         }
 
         return refreshToken;

@@ -20,7 +20,7 @@ public class UserResponseDto {
     private String email;
     private boolean enabled;
     private boolean accountNonLocked;
-    private LocalDateTime lastLoginAttempt;
+    private boolean isOnline;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

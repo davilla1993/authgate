@@ -25,6 +25,10 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
+      listeners:
+        envers:
+          autoRegister: true
+
   mail:
     host: smtp.gmail.com
     port: 587

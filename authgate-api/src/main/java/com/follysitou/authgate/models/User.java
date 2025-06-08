@@ -1,5 +1,6 @@
 package com.follysitou.authgate.models;
 
+import com.follysitou.authgate.audit.Auditable;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -9,11 +10,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.envers.Audited;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashSet;
@@ -26,8 +29,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @NoArgsConstructor
 @AllArgsConstructor
+@Audited
 @Table(name = "users")
-public class User implements UserDetails {
+public class User extends Auditable implements UserDetails {
 
     private static final int MAX_FAILED_ATTEMPTS = 4;
 
@@ -70,8 +74,11 @@ public class User implements UserDetails {
     private LocalDateTime manualLockTime;
     private String lockedBy; // Email de l'admin qui a verrouillé
 
-    private LocalDateTime lastLoginAttempt;
     private LocalDateTime passwordChangedAt;
+
+    private Instant lastActivity;
+
+    private boolean online;
 
     private int failedAttempts;
 
@@ -91,20 +98,6 @@ public class User implements UserDetails {
 
     private LocalDateTime resetPasswordTokenExpiry;
 
-    private LocalDateTime createdAt;
-
-    private LocalDateTime updatedAt;
-
-    @PrePersist
-    @PreUpdate
-    public void updateTimestamps() {
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    public void recordLoginAttempt() {
-        this.lastLoginAttempt = LocalDateTime.now();
-    }
-
     public void recordPasswordChange() {
         this.passwordChangedAt = LocalDateTime.now();
     }
@@ -115,8 +108,6 @@ public class User implements UserDetails {
         this.email = email;
         this.password = password;
         this.enabled = false;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
     }
 
     @Override
@@ -180,6 +171,7 @@ public class User implements UserDetails {
 
     @Override
     public boolean isCredentialsNonExpired() {
+
         return credentialsNonExpired;
     }
 

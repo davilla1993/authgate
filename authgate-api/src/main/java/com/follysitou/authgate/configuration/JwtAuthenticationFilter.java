@@ -1,6 +1,7 @@
 package com.follysitou.authgate.configuration;
 
 import com.follysitou.authgate.repository.BlackListedTokenRepository;
+import com.follysitou.authgate.repository.UserRepository;
 import com.follysitou.authgate.service.AuthService;
 import com.follysitou.authgate.service.JwtService;
 import com.follysitou.authgate.utils.TokenUtils;
@@ -8,6 +9,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,24 +22,29 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Instant;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final AuthService authService;
+    private final UserRepository userRepository;
     private final BlackListedTokenRepository blackListedTokenRepository;
 
-    public JwtAuthenticationFilter(JwtService jwtService, @Lazy AuthService authService,
+    public JwtAuthenticationFilter(JwtService jwtService,
+                                   @Lazy AuthService authService,
+                                   UserRepository userRepository,
                                    BlackListedTokenRepository blackListedTokenRepository) {
         this.jwtService = jwtService;
         this.authService = authService;
+        this.userRepository = userRepository;
         this.blackListedTokenRepository = blackListedTokenRepository;
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, @NonNull HttpServletResponse response,
+                                   @NonNull FilterChain filterChain) throws ServletException, IOException {
 
         // 1. Extraire le token du header
         final String authHeader = request.getHeader("Authorization");
@@ -50,13 +57,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String jwt = authHeader.substring(7);
 
         if (!jwtService.isTokenValid(jwt)) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token invalide");
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid token");
             return;
         }
 
         String tokenHash = TokenUtils.sha256(jwt);
         if (blackListedTokenRepository.existsByTokenHash(tokenHash)) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Session invalide");
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid session");
             return;
         }
 
@@ -66,6 +73,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             UserDetails userDetails = this.authService.loadUserByUsername(userEmail);
 
             if (jwtService.validateToken(jwt, userDetails)) {
+
+                userRepository.updateLastActivityAndOnline(userEmail, Instant.now(), true);
+
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
                         null,
