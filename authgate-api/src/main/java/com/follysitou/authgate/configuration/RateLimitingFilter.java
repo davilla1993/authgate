@@ -29,6 +29,13 @@ public class RateLimitingFilter implements Filter {
 
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         String path = httpRequest.getRequestURI();
+
+        // Exclure les chemins Swagger du rate limiting
+        if (path.startsWith("/swagger-ui") || path.startsWith("/v3/api-docs") || path.startsWith("/swagger-resources")) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         Bucket targetBucket = path.startsWith("/api/auth/login") ? loginBucket : defaultBucket;
 
         ConsumptionProbe probe = targetBucket.tryConsumeAndReturnRemaining(1);
