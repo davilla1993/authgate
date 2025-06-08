@@ -109,7 +109,13 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/users/**").hasRole("USER")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                .requestMatchers("/swagger-ui/**",
+                        "/v3/api-docs/**",
+                        "/api/auth/register",
+                        "/api/auth/login",
+                        "/api/auth/verify",
+                        "/api/auth/forgot-password",
+                        "/api/auth/reset-password").permitAll()
                 .anyRequest().authenticated() // Toutes les autres requêtes nécessitent une authentification
         );
 

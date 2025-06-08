@@ -3,6 +3,7 @@ package com.follysitou.authgate.audit;
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.MappedSuperclass;
+import jakarta.persistence.PrePersist;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.data.annotation.CreatedBy;
@@ -12,6 +13,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -19,12 +21,20 @@ import java.time.Instant;
 @EntityListeners(AuditingEntityListener.class)
 public abstract class Auditable {
 
+    @Column(name = "public_id",
+            nullable = false,
+            unique = true,
+            updatable = false)
+    private UUID publicId;
+
     @CreatedBy
-    @Column(name = "created_by", updatable = false)
+    @Column(name = "created_by",
+            updatable = false)
     protected String createdBy;
 
     @CreatedDate
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "created_at",
+            updatable = false)
     protected Instant createdAt;
 
     @LastModifiedBy
@@ -43,4 +53,11 @@ public abstract class Auditable {
 
     @Column(name = "deleted")
     private boolean deleted;
+
+    @PrePersist
+    public void generatePublicId() {
+        if (publicId == null) {
+            publicId = UUID.randomUUID();
+        }
+    }
 }
