@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.envers.Audited;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -33,7 +34,7 @@ import java.util.stream.Collectors;
 @Table(name = "users")
 public class User extends Auditable implements UserDetails {
 
-    private static final int MAX_FAILED_ATTEMPTS = 4;
+    private static final int MAX_FAILED_ATTEMPTS = 3;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

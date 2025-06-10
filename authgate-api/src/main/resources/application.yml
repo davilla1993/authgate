@@ -47,7 +47,6 @@ app:
   verification:
     code-expiration: 600000 # 10 minutes
   account:
-    max-failed-attempts: 5
     lock-time-minutes: 60
   security:
     csrf:
@@ -62,6 +61,10 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     enabled: true
+
+rate-limiting:
+  max-failed-attempts: 5
+  refill-duration-minutes: 30
 
 logging:
   level:

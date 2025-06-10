@@ -16,9 +16,9 @@ import java.util.List;
 @Builder
 public class ErrorDto {
 
-    private Integer httpCode;
-
     private ErrorCodes code;
+
+    private Integer httpCode;
 
     private String message;
 

@@ -4,11 +4,9 @@ import com.follysitou.authgate.dtos.auth.*;
 import com.follysitou.authgate.exceptions.*;
 import com.follysitou.authgate.models.BlackListedToken;
 import com.follysitou.authgate.models.RefreshToken;
-import com.follysitou.authgate.models.Role;
 import com.follysitou.authgate.models.User;
 import com.follysitou.authgate.repository.BlackListedTokenRepository;
 import com.follysitou.authgate.repository.RefreshTokenRepository;
-import com.follysitou.authgate.repository.RoleRepository;
 import com.follysitou.authgate.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -90,8 +88,14 @@ public class AuthService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return userRepository.findByEmail(email)
+        User user =  userRepository.findByEmail(email)
                 .orElseThrow(() -> new EntityNotFoundException("User not found: " + email));
+
+        if (!user.isEnabled()) {
+            throw new AccountDisableException("The user account is disabled.");
+        }
+
+        return user;
     }
 
     public ApiResponse register(RegisterRequest request) {
@@ -127,6 +131,11 @@ public class AuthService implements UserDetailsService {
             Optional<User> userOptional = userRepository.findByEmail(request.getEmail());
             if (userOptional.isPresent()) {
                 User user = userOptional.get();
+
+                // Vérifier si le compte est activé
+                if (!user.isEnabled()) {
+                    throw new AccountDisableException("The user account is disabled.");
+                }
 
                 // Vérifier si le compte est verrouillé
                 if (user.isAccountLocked()) {
@@ -186,6 +195,8 @@ public class AuthService implements UserDetailsService {
                             user.getLockTime().plusMinutes(accountLockTimeMinutes),
                             user.getFirstName()
                     );
+
+                    throw new BusinessException("Account locked for multiple unsuccessful login attempts");
                 }
             });
 

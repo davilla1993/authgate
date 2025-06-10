@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -69,6 +70,19 @@ public class RestExceptionHandler {
                 .errors(exception.getErrors())
                 .build();
         return new ResponseEntity<>(errorDto, badRequest);
+    }
+
+    @ExceptionHandler(AccountDisableException.class)
+    public ResponseEntity<ErrorDto> handleDisabledException(AccountDisableException exception, WebRequest webRequest){
+        log.warn("DisabledException: {}", exception.getMessage());
+        final HttpStatus unauthorized = HttpStatus.UNAUTHORIZED; // Statut 401
+        final ErrorDto errorDto = ErrorDto.builder()
+                .code(exception.getErrorCode())
+                .httpCode(unauthorized.value())
+                .message(exception.getMessage())
+                .errors(exception.getErrors())
+                .build();
+        return new ResponseEntity<>(errorDto, unauthorized);
     }
 
     @ExceptionHandler(UnauthorizedException.class)
