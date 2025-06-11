@@ -108,7 +108,8 @@ public class User extends Auditable implements UserDetails {
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return this.roles.stream()
                 .flatMap(role -> role.getPermissions().stream())
-                .map(permission -> new SimpleGrantedAuthority(permission.getName()))
+                .map(permission -> permission.getName().toLowerCase().replace("_", ":"))
+                .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toSet());
     }
 

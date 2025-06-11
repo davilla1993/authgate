@@ -23,15 +23,8 @@ public class UserController {
     private final UserService userService;
     private final UserRepository userRepository;
 
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('user:read')")
-    public ResponseEntity<UserResponseDto> getUserById(@PathVariable Long id) {
-        UserResponseDto userDto = userService.getUserById(id);
-        return ResponseEntity.ok(userDto);
-    }
-
     @GetMapping("/me")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('user:self:read')")
     public ResponseEntity<UserResponseDto> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
         User user = userRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
@@ -39,16 +32,13 @@ public class UserController {
     }
 
     @PutMapping("/me")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<UserResponseDto> updateCurrentUser(
+    @PreAuthorize("hasAnyAuthority('user:self:update', 'admin:user:update')")
+    public ResponseEntity<UserResponseDto> updateSelf(
             @RequestBody Map<String, Object> updates,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal UserDetails currentUser) {
 
-        User user = userRepository.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new EntityNotFoundException("User not found"));
-
-        UserResponseDto updated = userService.updateUser(user.getId(), updates);
-        return ResponseEntity.ok(updated);
+        UserResponseDto updatedUser = userService.updateSelf(updates, currentUser);
+        return ResponseEntity.ok(updatedUser);
     }
 }
 

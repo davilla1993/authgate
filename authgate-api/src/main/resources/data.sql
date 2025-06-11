@@ -1,41 +1,50 @@
+-- 🔄 Nettoyage préalable si nécessaire
 /*
--- Insertion conditionnelle des permissions
-INSERT INTO permissions (name, description)
-SELECT * FROM (
-    SELECT 'basic_access', 'Accès basique à l''application' UNION ALL
-    SELECT 'user:read', 'Lire les informations utilisateur' UNION ALL
-    SELECT 'user:create', 'Créer un nouvel utilisateur' UNION ALL
-    -- ... autres permissions ...
-    SELECT 'system:read', 'Lire les informations système') AS tmp
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = tmp.name);
+TRUNCATE TABLE role_permissions, roles, permissions RESTART IDENTITY CASCADE;
 
--- Insertion conditionnelle du rôle ADMIN
-INSERT INTO roles (name, description)
-SELECT 'ROLE_ADMIN', 'Administrateur avec tous les droits'
-WHERE NOT EXISTS (SELECT 1 FROM roles WHERE name = 'ROLE_ADMIN');
+-- 🔐 Insertion des permissions statiques
+INSERT INTO permissions (name, description, created_by)
+VALUES
+  ('USER_SELF_READ', 'Lire son propre profil', 'carlogbossou93@gmail.com'),
+  ('USER_SELF_UPDATE', 'Modifier son propre profil', 'carlogbossou93@gmail.com'),
+  ('USER_SELF_DELETE', 'Supprimer son propre profil', 'carlogbossou93@gmail.com'),
+  ('BASIC_ACCESS', 'Accès basique à l\'application', 'carlogbossou93@gmail.com');
 
--- Assignation des permissions au rôle ADMIN
+-- 🔐 Insertion des permissions dynamiques pour User.class
+INSERT INTO permissions (name, description, created_by)
+VALUES
+  ('ADMIN_USER_CREATE', 'Gestion des utilisateurs (admin) - create', 'carlogbossou93@gmail.com'),
+  ('ADMIN_USER_READ', 'Gestion des utilisateurs (admin) - read', 'carlogbossou93@gmail.com'),
+  ('ADMIN_USER_UPDATE', 'Gestion des utilisateurs (admin) - update', 'carlogbossou93@gmail.com'),
+  ('ADMIN_USER_DELETE', 'Gestion des utilisateurs (admin) - delete', 'carlogbossou93@gmail.com'),
+  ('ADMIN_USER_LOCK', 'Gestion des utilisateurs (admin) - lock', 'carlogbossou93@gmail.com'),
+  ('ADMIN_USER_UNLOCK', 'Gestion des utilisateurs (admin) - unlock', 'carlogbossou93@gmail.com'),
+  ('ADMIN_USER_ASSIGN', 'Gestion des utilisateurs (admin) - assign', 'carlogbossou93@gmail.com'),
+  ('ADMIN_USER_EXPORT', 'Gestion des utilisateurs (admin) - export', 'carlogbossou93@gmail.com'),
+  ('ADMIN_USER_UPLOAD_PHOTO', 'Gestion des utilisateurs (admin) - upload_photo', 'carlogbossou93@gmail.com'),
+  ('ADMIN_USER_DELETE_PHOTO', 'Gestion des utilisateurs (admin) - delete_photo', 'carlogbossou93@gmail.com'),
+  ('ADMIN_USER_VIEW_PHOTO', 'Gestion des utilisateurs (admin) - view_photo', 'carlogbossou93@gmail.com');
+
+-- 🔐 Insertion du rôle ROLE_USER
+INSERT INTO roles (name, description, created_by)
+VALUES ('ROLE_USER', 'Rôle utilisateur de base', 'carlogbossou93@gmail.com');
+
+-- 🔐 Insertion du rôle ROLE_ADMIN
+INSERT INTO roles (name, description, created_by)
+VALUES ('ROLE_ADMIN', 'Rôle administrateur avec tous les droits', 'carlogbossou93@gmail.com');
+
+-- 🧩 Association des permissions au rôle ROLE_USER
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.name = 'ROLE_ADMIN'
-AND NOT EXISTS (
-    SELECT 1 FROM role_permissions rp
-    WHERE rp.role_id = r.id AND rp.permission_id = p.id
+WHERE r.name = 'ROLE_USER' AND p.name IN (
+  'USER_SELF_READ',
+  'USER_SELF_UPDATE',
+  'USER_SELF_DELETE',
+  'BASIC_ACCESS'
 );
 
--- Insertion conditionnelle du rôle USER
-INSERT INTO roles (name, description)
-SELECT 'ROLE_USER', 'Utilisateur standard avec accès basique'
-WHERE NOT EXISTS (SELECT 1 FROM roles WHERE name = 'ROLE_USER');
-
--- Assignation de la permission basic_access au rôle USER
+-- 🧩 Association des permissions au rôle ROLE_ADMIN
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.name = 'ROLE_USER' AND p.name = 'basic_access'
-AND NOT EXISTS (
-    SELECT 1 FROM role_permissions rp
-    WHERE rp.role_id = r.id AND rp.permission_id = p.id
-);*/
-
-
---TRUNCATE TABLE role_permissions, roles, permissions CASCADE;
+WHERE r.name = 'ROLE_ADMIN';
+*/

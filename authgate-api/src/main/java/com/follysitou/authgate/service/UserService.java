@@ -5,6 +5,7 @@ import com.follysitou.authgate.dtos.auth.RegisterRequest;
 import com.follysitou.authgate.dtos.user.AccountStatusResponseDto;
 import com.follysitou.authgate.dtos.user.UserResponseDto;
 import com.follysitou.authgate.exceptions.EntityNotFoundException;
+import com.follysitou.authgate.exceptions.ForbiddenException;
 import com.follysitou.authgate.exceptions.InvalidOperationException;
 import com.follysitou.authgate.exceptions.ResourceAlreadyExistsException;
 import com.follysitou.authgate.mappers.user.UserMapper;
@@ -103,21 +104,51 @@ public class UserService {
         return UserMapper.mapToStatusDto(user);
     }
 
-    public UserResponseDto updateUser(Long id, Map<String, Object> updates) {
-        User user = userRepository.findById(id)
+    public UserResponseDto updateCurrentUser(Map<String, Object> updates, UserDetails userDetails) {
+        User user = userRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
-        if (updates.containsKey("firstName")) user.setFirstName((String) updates.get("firstName"));
-        if (updates.containsKey("lastName")) user.setLastName((String) updates.get("lastName"));
 
+        return updateUser(user.getId(), updates); // Réutilise la logique existante
+    }
+
+     // ✅ Réservé aux ADMINS : L'admin peut modifier les informations d'un utilisateur
+    public UserResponseDto updateUser(Long targetUserId, Map<String, Object> updates) {
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
+        // Validation métier
         if (updates.containsKey("email")) {
             throw new InvalidOperationException("Email modification is not allowed");
         }
 
-        userRepository.save(user);
-        log.info("ADMIN modified user {}", user.getEmail());
+        if (updates.containsKey("firstName")) targetUser.setFirstName((String) updates.get("firstName"));
+        if (updates.containsKey("lastName")) targetUser.setLastName((String) updates.get("lastName"));
 
-        return UserMapper.mapToDto(user);
+        userRepository.save(targetUser);
+        log.info("Admin modified user ID {}", targetUserId);
+
+        return UserMapper.mapToDto(targetUser);
+    }
+
+    //  ✅ Réservé aux USER : Un utilisateur peut modifier ses propres informations
+    public UserResponseDto updateSelf(Map<String, Object> updates, UserDetails currentUser) {
+        User currentUserEntity = userRepository.findByEmail(currentUser.getUsername())
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
+        // Bloque la modification de l'email
+        if (updates.containsKey("email")) {
+            throw new InvalidOperationException("Email modification is not allowed");
+        }
+
+        // Applique les modifications
+        if (updates.containsKey("firstName")) currentUserEntity.setFirstName((String) updates.get("firstName"));
+        if (updates.containsKey("lastName")) currentUserEntity.setLastName((String) updates.get("lastName"));
+
+        userRepository.save(currentUserEntity);
+        log.info("User modified their own profile");
+
+        return UserMapper.mapToDto(currentUserEntity);
     }
 
     @Transactional

@@ -56,16 +56,22 @@ public class AdminController {
     //   +++++++++++++++++++++++++++++++++++++++ User Management ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     @PostMapping("/users")
-    @PreAuthorize("hasAuthority('user:create')")
+    @PreAuthorize("hasAuthority('admin:user:create')")
     public ResponseEntity<ApiResponse> createUserByAdmin(@RequestBody RegisterRequest registerRequest) {
             ApiResponse newUser = userService.createUserByAdmin(registerRequest);
 
             return ResponseEntity.ok(newUser);
     }
 
+    @GetMapping("users/{id}")
+    @PreAuthorize("hasAuthority('admin:user:read')")
+    public ResponseEntity<UserResponseDto> getUserById(@PathVariable Long id) {
+        UserResponseDto userDto = userService.getUserById(id);
+        return ResponseEntity.ok(userDto);
+    }
 
     @GetMapping("/users")
-    @PreAuthorize("hasAuthority('user:read')")
+    @PreAuthorize("hasAuthority('admin:user:read')")
     public ResponseEntity<Page<UserResponseDto>> getAllUsers(
             @RequestParam(required = false) Boolean active,
             @RequestParam(required = false) String search,
@@ -78,7 +84,7 @@ public class AdminController {
     }
 
     @GetMapping("/users/online")
-    @PreAuthorize("hasAuthority('user:read')")
+    @PreAuthorize("hasAuthority('admin:user:read')")
     public ResponseEntity<Page<UserResponseDto>> getOnlineUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
@@ -89,20 +95,20 @@ public class AdminController {
     }
 
     @PutMapping("/users/{id}")
-    @PreAuthorize("hasAuthority('user:update')")
+    @PreAuthorize("hasAuthority('admin:user:update')")
     public ResponseEntity<UserResponseDto> updateUser(
             @PathVariable Long id,
             @RequestBody Map<String, Object> updates) {
 
-        UserResponseDto updated = userService.updateUser(id, updates);
+        UserResponseDto updatedUser = userService.updateUser(id, updates);
 
-        return ResponseEntity.ok(updated);
+        return ResponseEntity.ok(updatedUser);
     }
 
     //   +++++++++++++++++++++++++++++++++++++++ Accounts Management ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     @GetMapping("/users/locked")
-    @PreAuthorize("hasAuthority('user:account-control')")
+    @PreAuthorize("hasAuthority('admin:user:account-control')")
     public ResponseEntity<Page<UserResponseDto>> getLockedAccounts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
@@ -114,7 +120,7 @@ public class AdminController {
     }
 
     @GetMapping("/users/{email}/status")
-    @PreAuthorize("hasAuthority('user:account-control')")
+    @PreAuthorize("hasAuthority('admin:user:account-control')")
     public ResponseEntity<AccountStatusResponseDto> getAccountStatus(@PathVariable @Email String email) {
 
         AccountStatusResponseDto response = userService.getUserAccountStatus(email);
@@ -123,7 +129,7 @@ public class AdminController {
     }
 
     @PostMapping("/users/lock")
-    @PreAuthorize("hasAuthority('user:account-control')")
+    @PreAuthorize("hasAuthority('admin:user:account-control')")
     public ResponseEntity<?> lockUserAccount( @Valid @RequestBody LockAccountRequest request,
                                                 @AuthenticationPrincipal UserDetails adminEmail) {
 
@@ -134,7 +140,7 @@ public class AdminController {
     }
 
     @PostMapping("/users/unlock")
-    @PreAuthorize("hasAuthority('user:account-control')")
+    @PreAuthorize("hasAuthority('admin:user:account-control')")
     public ResponseEntity<ApiResponse> unlockUserAccount(
             @RequestParam String email) {
         ApiResponse response = authService.unlockUserAccount(email);
@@ -143,7 +149,7 @@ public class AdminController {
 
     //   +++++++++++++++++++++++++++++++++++++++ Role Management ++++++++++++++++++++++++++++++++++++++++++++++++++++++
     @PostMapping("/roles")
-    @PreAuthorize("hasAuthority('role:create')")
+    @PreAuthorize("hasAuthority('admin:role:create')")
     public ResponseEntity<Role> createRole(@RequestBody RoleRequest request) {
         Role role = roleService.createRole(request.getName(), request.getPermissionIds());
 
@@ -151,19 +157,19 @@ public class AdminController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('role:read')")
+    @PreAuthorize("hasAuthority('admin:role:read')")
     public ResponseEntity<List<Role>> getAllRoles() {
         return ResponseEntity.ok(roleService.getAllRoles());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('role:read')")
+    @PreAuthorize("hasAuthority('admin:role:read')")
     public ResponseEntity<Role> getRoleById(@PathVariable Long id) {
         return ResponseEntity.ok(roleService.getRoleById(id));
     }
 
     @PutMapping("/roles/{roleId}/permissions")
-    @PreAuthorize("hasAuthority('role:update')")
+    @PreAuthorize("hasAuthority('admin:role:update')")
     public ResponseEntity<Role> updateRolePermissions(@PathVariable Long roleId,
                                                       @RequestBody Set<Long> permissionIds) {
 
@@ -172,7 +178,7 @@ public class AdminController {
     }
 
     @PostMapping("/roles/assign")
-    @PreAuthorize("hasAuthority('role:assign')")
+    @PreAuthorize("hasAuthority('admin:role:assign')")
     public ResponseEntity<ApiResponse> updateUserRoles( @RequestParam Long userId, @RequestParam Set<Long> roleId) {
 
         userService.updateUserRole(userId, roleId);
@@ -180,7 +186,7 @@ public class AdminController {
     }
 
     @DeleteMapping("/{roleId}")
-    @PreAuthorize("hasAuthority('role:delete')")
+    @PreAuthorize("hasAuthority('admin:role:delete')")
     public ResponseEntity<ApiResponse> deleteRole(@PathVariable Long roleId) {
         roleService.deleteRole(roleId);
 
@@ -189,7 +195,7 @@ public class AdminController {
 
     //   +++++++++++++++++++++++++++++++++++++++ System Management ++++++++++++++++++++++++++++++++++++++++++++++++++++++
     @GetMapping("/system/stats")
-    @PreAuthorize("hasAuthority('system:read')")
+    @PreAuthorize("hasAuthority('admin:system:read')")
     public ResponseEntity<Map<String, Object>> getSystemStats() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalUsers", userRepository.count());
@@ -202,7 +208,7 @@ public class AdminController {
     }
 
     @PostMapping("/tokens/revoke")
-    @PreAuthorize("hasAuthority('token:revoke')")
+    @PreAuthorize("hasAuthority('admin:token:revoke')")
     public ResponseEntity<ApiResponse> revokeToken(@RequestBody String token) {
         if (!jwtService.isTokenValid(token)) {
             return ResponseEntity.badRequest().body(new ApiResponse(false, "Invalid token"));
