@@ -25,13 +25,14 @@ public class SystemScheduler {
     private final RefreshTokenService refreshTokenService;
     private final BlackListedTokenRepository blackListedTokenRepository;
 
-    @Scheduled(cron = "0 0 * * * *") // Toutes les heures
+   /* @Scheduled(cron = "0 0 * * * *") // Toutes les heures
     @Transactional
     public void cleanExpiredBlacklistedTokens() {
-        blackListedTokenRepository.deleteByExpiryDateBefore(Instant.now());
-    }
 
-    @Scheduled(cron = "0 0 9 * * ?") // Tous les jours à 9h
+        blackListedTokenRepository.deleteByExpiryDateBefore(Instant.now());
+    }*/
+
+    /*@Scheduled(cron = "0 0 9 * * ?") // Tous les jours à 9h
     public void checkPasswordExpiration() {
         LocalDateTime expirationThreshold = LocalDateTime.now().minusDays(90);
         List<User> users = userRepository.findByPasswordChangedAtBefore(expirationThreshold);
@@ -64,6 +65,6 @@ public class SystemScheduler {
         Instant threshold = Instant.now().minus(Duration.ofMinutes(10));
         userRepository.markUsersOfflineBefore(threshold);
         log.info("Users inactive since {} marked as offline", threshold);
-    }
+    }*/
 }
 

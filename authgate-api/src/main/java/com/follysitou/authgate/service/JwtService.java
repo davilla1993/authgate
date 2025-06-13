@@ -1,19 +1,24 @@
 package com.follysitou.authgate.service;
 
+import com.follysitou.authgate.models.Role;
+import com.follysitou.authgate.models.User;
 import com.follysitou.authgate.repository.BlackListedTokenRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -56,8 +61,42 @@ public class JwtService {
         return extractExpiration(token).before(new Date());
     }
 
+    /*public String generateToken(UserDetails userDetails) {
+        Map<String, Object> claims = new HashMap<>();
+
+        // Ajoutez les rôles et permissions
+        if (userDetails instanceof User) {
+            User user = (User) userDetails;
+            claims.put("roles", user.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .collect(Collectors.toList()));
+        }
+
+        return createToken(claims, userDetails.getUsername());
+    }*/
+
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
+
+        if (userDetails instanceof User) {
+            User user = (User) userDetails;
+
+            // Extract roles (already have ROLE_ prefix)
+            List<String> roleNames = user.getRoles().stream()
+                    .map(Role::getName) // ROLE_ADMIN, ROLE_USER
+                    .collect(Collectors.toList());
+
+            claims.put("roles", roleNames);
+
+            // Extract permissions
+            List<String> permissions = user.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .filter(auth -> !auth.startsWith("ROLE_")) // Exclude roles
+                    .collect(Collectors.toList());
+
+            claims.put("permissions", permissions);
+        }
+
         return createToken(claims, userDetails.getUsername());
     }
 
@@ -72,7 +111,7 @@ public class JwtService {
 
     private String createToken(Map<String, Object> claims, String subject) {
         return Jwts.builder()
-                .claims(claims)
+                .claims(claims) // <-- N'oubliez pas d'inclure les claims
                 .subject(subject)
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + jwtExpirationInMs))
@@ -101,6 +140,5 @@ public class JwtService {
             return false;
         }
     }
-
 }
 

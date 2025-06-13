@@ -1,5 +1,7 @@
--- 🔄 Nettoyage préalable si nécessaire
+
 /*
+
+-- 🔄 Nettoyage préalable si nécessaire
 TRUNCATE TABLE role_permissions, roles, permissions RESTART IDENTITY CASCADE;
 
 -- 🔐 Insertion des permissions statiques
@@ -47,4 +49,29 @@ WHERE r.name = 'ROLE_USER' AND p.name IN (
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'ROLE_ADMIN';
+
+
+-- 🔐 Création de ADMIN
+INSERT INTO users (
+    email,
+    password,
+    first_name,
+    last_name,
+    enabled,
+    created_by
+) VALUES (
+    'javaprogrammer1993@gmail.com',
+    '$2a$12$xCvpxA4ZjxjMQlwO2rj96.W3BiYJmcDOR9WWZHuwSsODJNugx12li', -- Password@1234
+    'Admin',
+    'AuthGate',
+    true,
+    'carlogbossou93@gmail.com'
+);
+
+-- 🧩 Association de ROLE_ADMIN à ADMIN
+INSERT INTO user_roles (user_id, role_id)
+SELECT u.id, r.id FROM users u, roles r
+WHERE u.email = 'javaprogrammer1993@gmail.com' AND r.name = 'ROLE_ADMIN';
+
 */
+

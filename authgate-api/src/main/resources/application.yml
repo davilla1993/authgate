@@ -28,16 +28,16 @@ spring:
           autoRegister: true
 
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: javaprogrammer1993@gmail.com
-    password: sbckiwyqtjghyptv
+    host: localhost    #smtp.gmail.com
+    port: 1025         #587
+    username:          #javaprogrammer1993@gmail.com
+    password:          #sbckiwyqtjghyptv
     properties:
       mail:
         smtp:
-          auth: true
+          auth: false  #true
           starttls:
-            enable: true
+            enable: false   #true
 
 app:
   jwt:

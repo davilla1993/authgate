@@ -104,13 +104,22 @@ public class User extends Auditable implements UserDetails {
     }
 
     @Override
-    @Cacheable(value = "userPermissions", key = "#root.target.email")
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return this.roles.stream()
+        Set<GrantedAuthority> authorities = new HashSet<>();
+
+        this.roles.forEach(role -> {
+            authorities.add(new SimpleGrantedAuthority(role.getName()));
+        });
+
+        // Ajouter les permissions avec conversion de format
+        this.roles.stream()
                 .flatMap(role -> role.getPermissions().stream())
-                .map(permission -> permission.getName().toLowerCase().replace("_", ":"))
-                .map(SimpleGrantedAuthority::new)
-                .collect(Collectors.toSet());
+                .map(permission -> new SimpleGrantedAuthority(
+                        permission.getName().toLowerCase().replace("_", ":")
+                ))
+                .forEach(authorities::add);
+
+        return authorities;
     }
 
     public boolean incrementFailedAttempts() {
@@ -165,7 +174,6 @@ public class User extends Auditable implements UserDetails {
 
     @Override
     public boolean isCredentialsNonExpired() {
-
         return credentialsNonExpired;
     }
 

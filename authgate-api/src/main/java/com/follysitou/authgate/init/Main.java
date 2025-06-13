@@ -6,12 +6,14 @@ import com.follysitou.authgate.models.Role;
 import com.follysitou.authgate.models.User;
 import com.follysitou.authgate.repository.PermissionRepository;
 import com.follysitou.authgate.repository.RoleRepository;
+import com.follysitou.authgate.repository.UserRepository;
 import com.follysitou.authgate.service.DynamicPermissionGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
@@ -25,6 +27,8 @@ import java.util.stream.Collectors;
 public class Main {
 
     private final RoleRepository roleRepo;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
     private final PermissionRepository permissionRepo;
 
     @Bean
@@ -33,8 +37,17 @@ public class Main {
         return args -> {
             log.info("Début de l'initialisation des permissions et rôles...");
 
-            // 1. Permissions statiques (utilisées dans @PreAuthorize)
-            Map<String, String> staticPermissions = Map.of(
+            // 1. Permissions statiques pour l'ADMIN (utilisées dans @PreAuthorize)
+            Map<String, String> staticPermissionsForAdmin = Map.of(
+                    "admin:self:read", "Lire son propre profil",
+                    "admin:self:update", "Modifier son propre profil",
+                    "admin:self:delete", "Supprimer son propre profil",
+                    "basic_access", "Accès basique à l'application"
+            );
+
+
+            // 1. Permissions statiques pour l'ADMIN (utilisées dans @PreAuthorize)
+            Map<String, String> staticPermissionsForUser = Map.of(
                     "user:self:read", "Lire son propre profil",
                     "user:self:update", "Modifier son propre profil",
                     "user:self:delete", "Supprimer son propre profil",
@@ -42,29 +55,27 @@ public class Main {
             );
 
             // 2. Permissions dynamiques ADMIN
-            Map<String, String> adminPermissions = DynamicPermissionGenerator
+            Map<String, String> dynamicPermissionsForAdmin = DynamicPermissionGenerator
                     .generatePermissionMapFor(User.class, "admin", "Gestion des utilisateurs (admin)");
 
             // 3. Fusion des permissions
             Map<String, String> allPermissions = new HashMap<>();
-            allPermissions.putAll(staticPermissions);
-            allPermissions.putAll(adminPermissions);
+            allPermissions.putAll(staticPermissionsForAdmin);
+            allPermissions.putAll(dynamicPermissionsForAdmin);
 
             // 4. Création des permissions en base (format DB)
             allPermissions.forEach(this::createPermissionIfNotExists);
-
+            staticPermissionsForUser.forEach(this::createPermissionIfNotExists);
             // 5. Création des rôles
-            createRoleIfNotExists("ROLE_USER", Set.of(
-                    "basic_access",
-                    "user:self:read",
-                    "user:self:update",
-                    "user:self:delete"
-            ));
+            createRoleIfNotExists("ROLE_USER", staticPermissionsForUser.keySet());
 
             createRoleIfNotExists("ROLE_ADMIN", allPermissions.keySet());
 
+            createAdminUserIfNotExists();
+
             log.info("Initialisation terminée avec succès");
         };
+
     }
 
     private void createPermissionIfNotExists(String permissionKey, String description) {
@@ -106,6 +117,28 @@ public class Main {
             log.info("Rôle {} créé avec {} permissions", roleName, permissions.size());
         } else {
             log.info("Rôle déjà existant : {}", roleName);
+        }
+    }
+
+    private void createAdminUserIfNotExists() {
+        String email = "javaprogrammer1993@gmail.com";
+
+        if (!userRepository.existsByEmail(email)) {
+            User user = new User();
+            user.setEmail(email);
+            user.setPassword(passwordEncoder.encode("Password@1234"));
+            user.setFirstName("Java");
+            user.setLastName("Programmer");
+            user.setEnabled(true);
+            user.setCreatedBy("carlogbossou93@gmail.com");
+
+            Role adminRole = roleRepo.findByName("ROLE_ADMIN")
+                    .orElseThrow(() -> new RuntimeException("ROLE_ADMIN introuvable"));
+
+            user.setRoles(Set.of(adminRole));
+            userRepository.save(user);
+
+            log.info("Utilisateur ADMIN créé avec succès : {}", email);
         }
     }
 }

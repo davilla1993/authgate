@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -45,6 +46,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
 
     @Modifying
+    @Transactional
     @Query("UPDATE User u SET u.lastActivity = :activity, u.online = :online WHERE u.email = :email")
     void updateLastActivityAndOnline(@Param("email") String email,
                                      @Param("activity") Instant activity,

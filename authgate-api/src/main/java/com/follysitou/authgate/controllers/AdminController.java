@@ -27,6 +27,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -218,5 +219,32 @@ public class AdminController {
         blackListedTokenRepository.save(new BlackListedToken(token, expiry));
 
         return ResponseEntity.ok(new ApiResponse(true, "Token successfully revoked"));
+    }
+
+    //   +++++++++++++++++++++++++++++++++++++++ Self Management ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    @GetMapping("/me")
+    @PreAuthorize("hasAuthority('admin:self:read')")
+    public ResponseEntity<UserResponseDto> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
+        User user = userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+        return ResponseEntity.ok(UserMapper.mapToDto(user));
+    }
+
+    @PutMapping("/me")
+    @PreAuthorize("hasAnyAuthority('admin:self:update')")
+    public ResponseEntity<UserResponseDto> updateSelf(
+            @RequestBody Map<String, Object> updates,
+            @AuthenticationPrincipal UserDetails currentUser) {
+
+        UserResponseDto updatedUser = userService.updateSelf(updates, currentUser);
+        return ResponseEntity.ok(updatedUser);
+    }
+
+
+    //   +++++++++++++++++++++++++++++++++++++++ Test Endpoint ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    @GetMapping("/test/permissions")
+    public ResponseEntity<?> testPermissions(Authentication authentication) {
+        return ResponseEntity.ok(authentication.getAuthorities());
     }
 }

@@ -9,6 +9,7 @@ import com.follysitou.authgate.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +19,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('USER')")
 public class UserController {
 
     private final UserService userService;
@@ -32,7 +34,7 @@ public class UserController {
     }
 
     @PutMapping("/me")
-    @PreAuthorize("hasAnyAuthority('user:self:update', 'admin:user:update')")
+    @PreAuthorize("hasAnyAuthority('user:self:update')")
     public ResponseEntity<UserResponseDto> updateSelf(
             @RequestBody Map<String, Object> updates,
             @AuthenticationPrincipal UserDetails currentUser) {
@@ -40,5 +42,6 @@ public class UserController {
         UserResponseDto updatedUser = userService.updateSelf(updates, currentUser);
         return ResponseEntity.ok(updatedUser);
     }
+
 }
 

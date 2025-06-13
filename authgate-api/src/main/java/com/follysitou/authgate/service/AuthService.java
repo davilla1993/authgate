@@ -136,7 +136,6 @@ public class AuthService implements UserDetailsService {
                 if (!user.isEnabled()) {
                     throw new AccountDisableException("The user account is disabled.");
                 }
-
                 // Vérifier si le compte est verrouillé
                 if (user.isAccountLocked()) {
                     if (user.getLockTime().plusMinutes(accountLockTimeMinutes).isAfter(LocalDateTime.now())) {
@@ -207,9 +206,6 @@ public class AuthService implements UserDetailsService {
         }
     }
 
-
-
-    @Transactional
     public AuthResponse verifyCode(VerificationRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
@@ -223,7 +219,6 @@ public class AuthService implements UserDetailsService {
         // Nettoyer le code de vérification
         user.setVerificationCode(null);
         user.setVerificationCodeExpiry(null);
-        userRepository.save(user);
 
         if (!user.isEnabled()) {
             user.setEnabled(true);

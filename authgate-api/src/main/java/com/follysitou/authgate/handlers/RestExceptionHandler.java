@@ -4,8 +4,11 @@ import com.follysitou.authgate.exceptions.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -194,5 +197,42 @@ public class RestExceptionHandler {
                 .build();
 
         return new ResponseEntity<>(errorDto, HttpStatus.BAD_REQUEST);
+    }
+
+    /*@ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorDto> handleAccessDeniedException(AccessDeniedException exception, WebRequest webRequest) {
+        log.warn("AccessDeniedException: {}", exception.getMessage());
+
+        final ErrorDto errorDto = ErrorDto.builder()
+                .code(ErrorCodes.FORBIDDEN_ACCESS)
+                .httpCode(HttpStatus.FORBIDDEN.value())
+                .message("You do not have the necessary permissions to access this resource.")
+                .errors(Collections.singletonList(exception.getMessage()))
+                .build();
+
+        return new ResponseEntity<>(errorDto, HttpStatus.FORBIDDEN);
+    }*/
+
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorDto> handleAccessDeniedException(AccessDeniedException exception, WebRequest webRequest) {
+        String message = "Accès refusé";
+
+        // Détecter si l'utilisateur est authentifié ou non
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
+            message = "You do not have the necessary permissions to access this resource.";
+        } else {
+            message = "Authentication required to access this resource";
+        }
+
+        final ErrorDto errorDto = ErrorDto.builder()
+                .code(ErrorCodes.FORBIDDEN_ACCESS)
+                .httpCode(HttpStatus.FORBIDDEN.value())
+                .message(message)
+                .errors(Collections.singletonList(exception.getMessage()))
+                .build();
+
+        return new ResponseEntity<>(errorDto, HttpStatus.FORBIDDEN);
     }
 }
