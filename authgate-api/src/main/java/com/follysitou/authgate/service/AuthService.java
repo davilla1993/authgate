@@ -206,30 +206,48 @@ public class AuthService implements UserDetailsService {
         }
     }
 
-    public AuthResponse verifyCode(VerificationRequest request) {
+    private boolean codeIsValid(User user, String code) {
+        return user.getVerificationCode() != null &&
+                user.getVerificationCode().equals(code) &&
+                user.getVerificationCodeExpiry() != null &&
+                user.getVerificationCodeExpiry().isAfter(LocalDateTime.now());
+    }
+
+
+    @Transactional
+    public AuthResponse verifyRegistrationCode(VerificationRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
-        if (user.getVerificationCode() == null ||
-                !user.getVerificationCode().equals(request.getCode()) ||
-                user.getVerificationCodeExpiry().isBefore(LocalDateTime.now())) {
-            throw new InvalidOperationException("Invalid or expired verification code");
+        if (!codeIsValid(user, request.getCode())) {
+            throw new InvalidOperationException("Invalid or expired code");
         }
 
-        // Nettoyer le code de vérification
         user.setVerificationCode(null);
         user.setVerificationCodeExpiry(null);
-
-        if (!user.isEnabled()) {
-            user.setEnabled(true);
-        }
+        user.setEnabled(true);
         userRepository.save(user);
 
-        // Générer le token JWT
+        return new AuthResponse("Email successfully verified", false);
+    }
+
+    @Transactional
+    public AuthResponse verifyLoginCode(VerificationRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
+        if (!codeIsValid(user, request.getCode())) {
+            throw new InvalidOperationException("Invalid or expired code");
+        }
+
+        user.setVerificationCode(null);
+        user.setVerificationCodeExpiry(null);
+        userRepository.save(user);
+
         String accessToken = jwtService.generateToken(user);
         String refreshToken = jwtService.generateRefreshToken(user);
 
-        return new AuthResponse(accessToken, refreshToken, "Succès");
+        return new AuthResponse(accessToken, refreshToken, "Login successful");
     }
 
     public ApiResponse forgotPassword(ForgotPasswordRequest request) {

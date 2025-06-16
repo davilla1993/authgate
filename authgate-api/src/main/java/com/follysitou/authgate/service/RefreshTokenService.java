@@ -62,6 +62,7 @@ public class RefreshTokenService {
     // Nettoie les tokens expirés (à appeler via un Scheduled)
     @Transactional
     public void cleanExpiredTokens() {
+
         refreshTokenRepository.deleteByExpiryDateBefore(Instant.now());
     }
 

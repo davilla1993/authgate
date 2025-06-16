@@ -1,5 +1,6 @@
 package com.follysitou.authgate.configuration;
 
+import com.follysitou.authgate.handlers.CustomAccessDeniedHandler;
 import com.follysitou.authgate.service.AuthService;
 
 import org.springframework.context.annotation.Bean;
@@ -27,15 +28,18 @@ public class SecurityConfig {
 
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
     private final RateLimitingFilter rateLimitingFilter;
 
     public SecurityConfig(@Lazy AuthService authService,
                           JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
                           JwtAuthenticationFilter jwtAuthenticationFilter,
+                          CustomAccessDeniedHandler customAccessDeniedHandler,
                           RateLimitingFilter rateLimitingFilter) {
 
         this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.customAccessDeniedHandler = customAccessDeniedHandler;
         this.rateLimitingFilter = rateLimitingFilter;
     }
 
@@ -71,6 +75,7 @@ public class SecurityConfig {
         // 1. Configuration de base (stateless, headers, etc.)
         http
                 .exceptionHandling(exception -> exception
+                        .accessDeniedHandler(customAccessDeniedHandler)
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))

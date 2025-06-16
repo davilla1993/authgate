@@ -151,21 +151,6 @@ public class UserService {
         return UserMapper.mapToDto(currentUserEntity);
     }
 
-    @Transactional
-    @CacheEvict(value = "userPermissions", key = "#userId")
-    public void updateUserRole(Long userId, Set<Long> roleIds) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("User not found with ID: " + userId));
-
-        Set<Role> roles = roleIds.stream()
-                .map(roleService::getRoleById)
-                .collect(Collectors.toSet());
-
-        user.setRoles(roles);
-
-        userRepository.save(user);
-    }
-
     public void deleteUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));

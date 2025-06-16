@@ -71,9 +71,8 @@ logging:
     org:
       springframework:
         security: DEBUG
-        web:
-          bind:
-            annotation: DEBUG
+        web: DEBUG
+        aop: TRACE
       validation: TRACE
 
 management:

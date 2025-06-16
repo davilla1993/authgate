@@ -1,6 +1,7 @@
 package com.follysitou.authgate.repository;
 
 import com.follysitou.authgate.dtos.user.UserResponseDto;
+import com.follysitou.authgate.models.Role;
 import com.follysitou.authgate.models.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +22,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmail(String email);
     boolean existsByEmail(String email);
+    boolean existsByRolesContaining(Role role);
+
     Page<User> findByOnlineTrue(Pageable pageable);
 
 

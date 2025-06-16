@@ -1,8 +1,11 @@
 package com.follysitou.authgate.service;
 
+import lombok.Builder;
+
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
+
 
 public class DynamicPermissionGenerator {
 

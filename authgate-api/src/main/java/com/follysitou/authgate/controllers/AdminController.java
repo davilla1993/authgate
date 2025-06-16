@@ -171,7 +171,7 @@ public class AdminController {
 
     @PutMapping("/roles/{roleId}/permissions")
     @PreAuthorize("hasAuthority('admin:role:update')")
-    public ResponseEntity<Role> updateRolePermissions(@PathVariable Long roleId,
+    public ResponseEntity<Role> addPermissionsToRole(@PathVariable Long roleId,
                                                       @RequestBody Set<Long> permissionIds) {
 
         Role role = roleService.updateRolePermissions(roleId, permissionIds);
@@ -180,11 +180,34 @@ public class AdminController {
 
     @PostMapping("/roles/assign")
     @PreAuthorize("hasAuthority('admin:role:assign')")
-    public ResponseEntity<ApiResponse> updateUserRoles( @RequestParam Long userId, @RequestParam Set<Long> roleId) {
+    public ResponseEntity<ApiResponse> addRolesToUser( @RequestParam Long userId, @RequestParam Set<Long> roleId) {
 
-        userService.updateUserRole(userId, roleId);
+        roleService.updateUserRole(userId, roleId);
         return ResponseEntity.ok(new ApiResponse(true, "Role successfully assigned"));
     }
+
+    @DeleteMapping("/roles/revoke")
+    @PreAuthorize("hasAuthority('admin:role:revoke')")
+    public ResponseEntity<ApiResponse> revokeRoleFromUser(
+            @RequestParam Long userId,
+            @RequestParam Long roleId) {
+
+        roleService.revokeRoleFromUser(userId, roleId);
+        return ResponseEntity.ok(new ApiResponse(true, "Role successfully revoked"));
+    }
+
+    @DeleteMapping("/roles/{roleId}/permissions")
+    @PreAuthorize("hasAuthority('admin:role:update')")
+    public ResponseEntity<ApiResponse> removePermissionsFromRole(
+            @PathVariable Long roleId,
+            @RequestBody Set<Long> permissionIds) {
+
+        roleService.removePermissionsFromRole(roleId, permissionIds);
+        return ResponseEntity.ok(new ApiResponse(true,
+                "Permissions successfully removed from role"));
+    }
+
+
 
     @DeleteMapping("/{roleId}")
     @PreAuthorize("hasAuthority('admin:role:delete')")

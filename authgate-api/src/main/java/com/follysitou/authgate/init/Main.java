@@ -42,6 +42,8 @@ public class Main {
                     "admin:self:read", "Lire son propre profil",
                     "admin:self:update", "Modifier son propre profil",
                     "admin:self:delete", "Supprimer son propre profil",
+                    "admin:user:account-control", "Contrôler totalement les comptes utilisateur",
+                    "admin:role:revoke", "Révoquer les rôles aux utilisateurs",
                     "basic_access", "Accès basique à l'application"
             );
 
@@ -55,13 +57,17 @@ public class Main {
             );
 
             // 2. Permissions dynamiques ADMIN
-            Map<String, String> dynamicPermissionsForAdmin = DynamicPermissionGenerator
+            Map<String, String> adminDynamicPermissionsForUser = DynamicPermissionGenerator
                     .generatePermissionMapFor(User.class, "admin", "Gestion des utilisateurs (admin)");
+
+            Map<String, String> adminDynamicPermissionsForRole = DynamicPermissionGenerator
+                    .generatePermissionMapFor(Role.class, "admin", "Gestion des roles (admin)");
 
             // 3. Fusion des permissions
             Map<String, String> allPermissions = new HashMap<>();
             allPermissions.putAll(staticPermissionsForAdmin);
-            allPermissions.putAll(dynamicPermissionsForAdmin);
+            allPermissions.putAll(adminDynamicPermissionsForUser);
+            allPermissions.putAll(adminDynamicPermissionsForRole);
 
             // 4. Création des permissions en base (format DB)
             allPermissions.forEach(this::createPermissionIfNotExists);

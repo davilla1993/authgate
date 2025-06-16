@@ -44,10 +44,22 @@ public class AuthController {
         }
     }
 
-    @PostMapping("/verify")
-    public ResponseEntity<?> verifyCode(@Valid @RequestBody VerificationRequest verificationRequest) {
+    @PostMapping("/verify-registration")
+    public ResponseEntity<?> verifyRegistration(@Valid @RequestBody VerificationRequest verificationRequest) {
         try {
-            AuthResponse response = authService.verifyCode(verificationRequest);
+            AuthResponse response = authService.verifyRegistrationCode(verificationRequest);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse(false, "Verification error : " + e.getMessage()));
+        }
+    }
+
+
+    @PostMapping("/verify-login")
+    public ResponseEntity<?> verifyLogin(@Valid @RequestBody VerificationRequest verificationRequest) {
+        try {
+            AuthResponse response = authService.verifyLoginCode(verificationRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.badRequest()

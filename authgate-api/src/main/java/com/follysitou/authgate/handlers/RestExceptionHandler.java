@@ -8,6 +8,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -199,24 +200,9 @@ public class RestExceptionHandler {
         return new ResponseEntity<>(errorDto, HttpStatus.BAD_REQUEST);
     }
 
-    /*@ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ErrorDto> handleAccessDeniedException(AccessDeniedException exception, WebRequest webRequest) {
-        log.warn("AccessDeniedException: {}", exception.getMessage());
-
-        final ErrorDto errorDto = ErrorDto.builder()
-                .code(ErrorCodes.FORBIDDEN_ACCESS)
-                .httpCode(HttpStatus.FORBIDDEN.value())
-                .message("You do not have the necessary permissions to access this resource.")
-                .errors(Collections.singletonList(exception.getMessage()))
-                .build();
-
-        return new ResponseEntity<>(errorDto, HttpStatus.FORBIDDEN);
-    }*/
-
-
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorDto> handleAccessDeniedException(AccessDeniedException exception, WebRequest webRequest) {
-        String message = "Accès refusé";
+        String message = "Access denied";
 
         // Détecter si l'utilisateur est authentifié ou non
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
