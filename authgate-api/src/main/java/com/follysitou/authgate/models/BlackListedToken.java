@@ -25,5 +25,4 @@ public class BlackListedToken {
         this.tokenHash = TokenUtils.sha256(token);
         this.expiryDate = expiryDate;
     }
-
 }

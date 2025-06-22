@@ -17,7 +17,7 @@ public class UserHistoryService {
         this.entityManager = entityManager;
     }
 
-    public List getUserRevisions(Long userId) {
+    public List<?> getUserRevisions(Long userId) {
         AuditReader auditReader = AuditReaderFactory.get(entityManager);
         // Récupère toutes les révisions (versions) pour un utilisateur donné
         return auditReader.createQuery()

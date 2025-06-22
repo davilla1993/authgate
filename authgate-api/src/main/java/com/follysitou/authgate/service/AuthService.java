@@ -2,6 +2,7 @@ package com.follysitou.authgate.service;
 
 import com.follysitou.authgate.dtos.auth.*;
 import com.follysitou.authgate.exceptions.*;
+import com.follysitou.authgate.handlers.ErrorCodes;
 import com.follysitou.authgate.models.BlackListedToken;
 import com.follysitou.authgate.models.RefreshToken;
 import com.follysitou.authgate.models.User;
@@ -20,6 +21,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -94,7 +96,6 @@ public class AuthService implements UserDetailsService {
         if (!user.isEnabled()) {
             throw new AccountDisableException("The user account is disabled.");
         }
-
         return user;
     }
 
@@ -247,6 +248,8 @@ public class AuthService implements UserDetailsService {
         String accessToken = jwtService.generateToken(user);
         String refreshToken = jwtService.generateRefreshToken(user);
 
+        userRepository.updateLastActivityAndOnline(request.getEmail(), Instant.now(), true);
+
         return new AuthResponse(accessToken, refreshToken, "Login successful");
     }
 
@@ -338,22 +341,46 @@ public class AuthService implements UserDetailsService {
                 .build();
     }
 
-    public ApiResponse lockUserAccount(String email, String reason, String adminEmail) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+    public ApiResponse lockUserAccount(String targetEmail, String reason, String adminEmail) {
+        User adminUser = userRepository.findByEmail(adminEmail)
+                .orElseThrow(() -> new EntityNotFoundException("Admin User not found", ErrorCodes.ENTITY_NOT_FOUND));
 
-        if (user.isAccountLocked()) {
-            throw new BusinessException("Account is already locked");
+        User targetUser = userRepository.findByEmail(targetEmail)
+                .orElseThrow(() -> new EntityNotFoundException("Target user not found.", ErrorCodes.USER_NOT_FOUND));
+
+        // Get the current authenticated user's roles
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new UnauthorizedException("User not authenticated.", ErrorCodes.UNAUTHORIZED_ACCESS);
         }
 
-        user.manualLock(reason, adminEmail);
-        userRepository.save(user);
+        // Check if the current user is an ACCOUNT_MANAGER
+        boolean isAdminAccountManager = authentication.getAuthorities().stream()
+                .anyMatch(grantedAuthority ->
+                        grantedAuthority.getAuthority().equals("ROLE_ACCOUNT_MANAGER"));
+
+        // Check if the target user is an ADMIN
+        boolean isTargetAdmin = targetUser.getRoles().stream()
+                .anyMatch(role -> role.getName().equals("ROLE_ADMIN"));
+
+        // **New Logic for Account Manager Restriction**
+        if (isAdminAccountManager && isTargetAdmin) {
+            throw new InvalidOperationException("Account Managers cannot lock or unlock Administrator accounts.",
+                    ErrorCodes.FORBIDDEN_ACCESS);
+        }
+
+        if (targetUser.isAccountLocked()) {
+            throw new InvalidOperationException("User account is already locked.", ErrorCodes.ACCOUNT_LOCKED);
+        }
+
+        targetUser.manualLock(reason, adminEmail);
+        userRepository.save(targetUser);
 
         // Log l'action
-        log.info("Compte {} verrouillé par {} pour raison : {}", email, adminEmail, reason);
+        log.info("Account {} locked by {} for reason: {}", targetEmail, adminEmail, reason);
 
         emailService.sendAccountManuallyLockedEmail(
-                user.getEmail(),
+                targetUser.getEmail(),
                 "Votre compte a été verrouillé",
                 reason
         );
@@ -361,18 +388,39 @@ public class AuthService implements UserDetailsService {
         return new ApiResponse(true, "Account successfully locked");
     }
 
-    public ApiResponse unlockUserAccount(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+    public ApiResponse unlockUserAccount(String targetEmail) {
+        User targetUser = userRepository.findByEmail(targetEmail)
+                .orElseThrow(() -> new EntityNotFoundException("User not found.", ErrorCodes.USER_NOT_FOUND));
 
-        if (!user.isAccountLocked()) {
-            throw new BusinessException("Account is not locked");
+        // Get the current authenticated user's roles
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new UnauthorizedException("User not authenticated.", ErrorCodes.UNAUTHORIZED_ACCESS);
         }
 
-        user.unlockAccount();
-        userRepository.save(user);
+        // Check if the current user is an ACCOUNT_MANAGER
+        boolean isAdminAccountManager = authentication.getAuthorities().stream()
+                .anyMatch(grantedAuthority ->
+                        grantedAuthority.getAuthority().equals("ROLE_ACCOUNT_MANAGER"));
 
-        emailService.sendAccountUnlockedEmail(user.getEmail(),
+        // Check if the target user is an ADMIN
+        boolean isTargetAdmin = targetUser.getRoles().stream()
+                .anyMatch(role -> role.getName().equals("ROLE_ADMIN"));
+
+        // **New Logic for Account Manager Restriction**
+        if (isAdminAccountManager && isTargetAdmin) {
+            throw new InvalidOperationException("Account Managers cannot lock or unlock Administrator accounts.",
+                    ErrorCodes.FORBIDDEN_ACCESS);
+        }
+
+        if (!targetUser.isAccountLocked()) {
+            throw new InvalidOperationException("Account is not locked", ErrorCodes.INVALID_OPERATION);
+        }
+
+        targetUser.unlockAccount();
+        userRepository.save(targetUser);
+
+        emailService.sendAccountUnlockedEmail(targetUser.getEmail(),
                 "Votre compte a été déverrouillé par un administrateur. " +
                         "Vous pouvez maintenant vous connecter normalement.");
 
@@ -412,6 +460,8 @@ public class AuthService implements UserDetailsService {
             }
 
             String username = jwtService.extractUsername(accessToken);
+            setUserOffline(username);
+
             log.info("User successfully logged out : {}", username);
 
             return new ApiResponse(true, "Logout successful");
@@ -420,6 +470,14 @@ public class AuthService implements UserDetailsService {
             log.error("Erreur lors du logout", e);
             return new ApiResponse(false, "Internal error while logging out");
         }
+    }
+
+    private void setUserOffline(String username) {
+        Optional<User> userOptional = userRepository.findByEmail(username);
+        userOptional.ifPresent(user -> {
+            user.setOnline(false);
+            userRepository.save(user);
+        });
     }
 
     private void clearRefreshTokenCookie(HttpServletResponse response) {

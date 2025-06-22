@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @Slf4j
-@RequestMapping("/api/auth")
+@RequestMapping("/auth")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*", maxAge = 3600)
 public class AuthController {
@@ -117,6 +117,7 @@ public class AuthController {
             HttpServletResponse response) {
 
         AuthResponse authResponse = authService.refreshToken(oldRefreshToken, response);
+
         return ResponseEntity.ok(authResponse);
     }
 }

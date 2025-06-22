@@ -12,8 +12,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/cache")
-@PreAuthorize("hasRole('ADMIN')")
+@RequestMapping("/cache")
 public class CacheController {
 
     @Autowired

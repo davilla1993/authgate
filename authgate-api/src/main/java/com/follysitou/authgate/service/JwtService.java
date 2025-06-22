@@ -61,20 +61,6 @@ public class JwtService {
         return extractExpiration(token).before(new Date());
     }
 
-    /*public String generateToken(UserDetails userDetails) {
-        Map<String, Object> claims = new HashMap<>();
-
-        // Ajoutez les rôles et permissions
-        if (userDetails instanceof User) {
-            User user = (User) userDetails;
-            claims.put("roles", user.getAuthorities().stream()
-                    .map(GrantedAuthority::getAuthority)
-                    .collect(Collectors.toList()));
-        }
-
-        return createToken(claims, userDetails.getUsername());
-    }*/
-
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
 

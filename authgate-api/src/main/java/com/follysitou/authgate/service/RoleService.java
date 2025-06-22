@@ -13,11 +13,14 @@ import com.follysitou.authgate.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -74,7 +77,7 @@ public class RoleService {
 
         userRepository.save(user);
     }
-
+    
     @CacheEvict(value = "roles", allEntries = true)
     public Role updateRolePermissions(Long roleId, Set<Long> permissionIds) {
         Role role = getRoleById(roleId);

@@ -42,9 +42,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/admin")
+@RequestMapping("/admin")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
     private final UserService userService;
@@ -206,8 +205,6 @@ public class AdminController {
         return ResponseEntity.ok(new ApiResponse(true,
                 "Permissions successfully removed from role"));
     }
-
-
 
     @DeleteMapping("/{roleId}")
     @PreAuthorize("hasAuthority('admin:role:delete')")

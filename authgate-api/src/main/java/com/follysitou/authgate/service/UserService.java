@@ -4,17 +4,12 @@ import com.follysitou.authgate.dtos.auth.ApiResponse;
 import com.follysitou.authgate.dtos.auth.RegisterRequest;
 import com.follysitou.authgate.dtos.user.AccountStatusResponseDto;
 import com.follysitou.authgate.dtos.user.UserResponseDto;
-import com.follysitou.authgate.exceptions.EntityNotFoundException;
-import com.follysitou.authgate.exceptions.ForbiddenException;
-import com.follysitou.authgate.exceptions.InvalidOperationException;
-import com.follysitou.authgate.exceptions.ResourceAlreadyExistsException;
+import com.follysitou.authgate.exceptions.*;
 import com.follysitou.authgate.mappers.user.UserMapper;
-import com.follysitou.authgate.models.Role;
 import com.follysitou.authgate.models.User;
 import com.follysitou.authgate.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
@@ -22,12 +17,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -58,15 +50,12 @@ public class UserService {
         // Activer directement le compte
         user.setEnabled(true);
         roleService.createAndAssignBasicRole(user);
-
         userRepository.save(user);
-
         // Notifier l’utilisateur par email
         emailService.sendAccountCreatedByAdmin(user.getEmail(), user.getFirstName());
 
         return new ApiResponse(true, "User account successfully created and notification email sent");
     }
-
 
     public Page<UserResponseDto> getAllUsers(Boolean active, String search, Pageable pageable) {
         Page<User> users;
@@ -80,9 +69,7 @@ public class UserService {
                     ? userRepository.findByEnabledTrue(pageable)
                     : userRepository.findByEnabledFalse(pageable);
         }
-
         return users.map(UserMapper::mapToDto);
-
     }
 
     public UserResponseDto getUserById(Long id) {

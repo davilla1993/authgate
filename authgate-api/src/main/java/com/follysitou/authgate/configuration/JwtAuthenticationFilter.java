@@ -86,7 +86,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (jwtService.validateToken(jwt, userDetails)) {
                     log.debug("Token valide pour {}", userEmail);
 
-                    userRepository.updateLastActivityAndOnline(userEmail, Instant.now(), true);
+                 //   userRepository.updateLastActivityAndOnline(userEmail, Instant.now(), true);
 
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,

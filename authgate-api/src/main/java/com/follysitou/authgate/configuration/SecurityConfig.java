@@ -3,9 +3,14 @@ package com.follysitou.authgate.configuration;
 import com.follysitou.authgate.handlers.CustomAccessDeniedHandler;
 import com.follysitou.authgate.service.AuthService;
 
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
+import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -55,6 +60,28 @@ public class SecurityConfig {
     }
 
     @Bean
+    public RoleHierarchy roleHierarchy() {
+        RoleHierarchyImpl roleHierarchy = new RoleHierarchyImpl();
+        String hierarchy = "ROLE_ADMIN > ROLE_MANAGER " +
+                "ROLE_MANAGER > ROLE_SUPERVISOR " +
+                "ROLE_SUPERVISOR > ROLE_ASSISTANT " +
+                "ROLE_ASSISTANT > ROLE_AGENT " +
+                "ROLE_AGENT > ROLE_TEMPORARY";
+        roleHierarchy.setHierarchy(hierarchy);
+        return roleHierarchy;
+    }
+
+    @Bean
+    public MethodSecurityExpressionHandler methodSecurityExpressionHandler(ApplicationContext applicationContext,
+                                                                           RoleHierarchy roleHierarchy) {
+
+        DefaultMethodSecurityExpressionHandler expressionHandler = new DefaultMethodSecurityExpressionHandler();
+        expressionHandler.setApplicationContext(applicationContext);
+        expressionHandler.setRoleHierarchy(roleHierarchy); // Important !
+        return expressionHandler;
+    }
+
+    @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
         return (web) -> web.ignoring().requestMatchers(
                 "/v2/api-docs",
@@ -92,8 +119,8 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .ignoringRequestMatchers(
-                        "/api/auth/login",
-                        "/api/auth/refresh-token",
+                        "/auth/login",
+                        "/auth/refresh-token",
                         "/v3/api-docs/**",
                         "/swagger-ui/**",
                         "/v2/api-docs",
@@ -104,23 +131,20 @@ public class SecurityConfig {
                         request -> {
                             // Active CSRF uniquement pour /logout et endpoints sensibles
                             String path = request.getRequestURI();
-                            return path.startsWith("/api/auth/logout") ||
-                                    path.startsWith("/api/sensitive-action"); // Remplace par tes propres chemins sensibles
+                            return path.startsWith("/auth/logout") ||
+                                    path.startsWith("/sensitive-action"); // Remplace par tes propres chemins sensibles
                         }
                 )
         );
 
         // 3. Autorisations
         http.authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/users/**").hasRole("USER")
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/admin/**").hasAuthority("admin:access")
+                .requestMatchers("/users/**").hasRole("user:access")
                 .requestMatchers("/swagger-ui/**",
                         "/v3/api-docs/**",
-                        "/api/auth/register",
-                        "/api/auth/login",
-                        "/api/auth/verify",
-                        "/api/auth/forgot-password",
-                        "/api/auth/reset-password").permitAll()
+                        "/auth/**")
+                .permitAll()
                 .anyRequest().authenticated() // Toutes les autres requêtes nécessitent une authentification
         );
 
