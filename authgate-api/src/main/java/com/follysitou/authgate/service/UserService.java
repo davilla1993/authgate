@@ -4,7 +4,9 @@ import com.follysitou.authgate.dtos.auth.ApiResponse;
 import com.follysitou.authgate.dtos.auth.RegisterRequest;
 import com.follysitou.authgate.dtos.user.AccountStatusResponseDto;
 import com.follysitou.authgate.dtos.user.UserResponseDto;
+import com.follysitou.authgate.dtos.user.UserUpdateRequest;
 import com.follysitou.authgate.exceptions.*;
+import com.follysitou.authgate.handlers.ErrorCodes;
 import com.follysitou.authgate.mappers.user.UserMapper;
 import com.follysitou.authgate.models.User;
 import com.follysitou.authgate.repository.UserRepository;
@@ -26,10 +28,11 @@ import java.util.Map;
 @Slf4j
 public class UserService {
 
+    private final RoleService roleService;
+    private final EmailService emailService;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final EmailService emailService;
-    private final RoleService roleService;
+    private final RoleHierarchyService roleHierarchyService;
     private final PasswordValidatorService passwordValidator;
 
     public ApiResponse createUserByAdmin(RegisterRequest request) {
@@ -91,29 +94,32 @@ public class UserService {
         return UserMapper.mapToStatusDto(user);
     }
 
-    public UserResponseDto updateCurrentUser(Map<String, Object> updates, UserDetails userDetails) {
-        User user = userRepository.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new EntityNotFoundException("User not found"));
-
-
-        return updateUser(user.getId(), updates); // Réutilise la logique existante
-    }
-
      // ✅ Réservé aux ADMINS : L'admin peut modifier les informations d'un utilisateur
-    public UserResponseDto updateUser(Long targetUserId, Map<String, Object> updates) {
-        User targetUser = userRepository.findById(targetUserId)
-                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+    public UserResponseDto updateUser(String targetEmail, UserUpdateRequest request) {
+        User targetUser = userRepository.findByEmail(targetEmail)
+                .orElseThrow(() -> new EntityNotFoundException("User not found: "
+                                                    + targetEmail, ErrorCodes.USER_NOT_FOUND));
+
+        boolean isTargetAdmin = targetUser.getRoles().stream()
+                .anyMatch(role -> role.getName().equals("ROLE_ADMIN"));
+
+        roleHierarchyService.checkAccountManagerAdminRestriction(isTargetAdmin,
+                "Account Managers cannot modify Administrator accounts.");
 
         // Validation métier
-        if (updates.containsKey("email")) {
-            throw new InvalidOperationException("Email modification is not allowed");
+        if (request.getEmail() != null && !request.getEmail().isEmpty() && !request.getEmail().equals(targetUser.getEmail())) {
+            throw new InvalidOperationException("Email modification is not allowed for user updates.", ErrorCodes.INVALID_OPERATION);
         }
 
-        if (updates.containsKey("firstName")) targetUser.setFirstName((String) updates.get("firstName"));
-        if (updates.containsKey("lastName")) targetUser.setLastName((String) updates.get("lastName"));
+        if (request.getFirstName() != null) {
+            targetUser.setFirstName(request.getFirstName());
+        }
+        if (request.getLastName() != null) {
+            targetUser.setLastName(request.getLastName());
+        }
 
         userRepository.save(targetUser);
-        log.info("Admin modified user ID {}", targetUserId);
+        log.info("Admin modified user with email: {}", targetEmail);
 
         return UserMapper.mapToDto(targetUser);
     }
@@ -171,12 +177,11 @@ public class UserService {
     private String getCurrentAuditor() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
-            return "system"; // Ou un utilisateur par défaut si aucune authentification
+            return "system";
         }
         if (authentication.getPrincipal() instanceof UserDetails) {
             return ((UserDetails) authentication.getPrincipal()).getUsername();
         }
         return authentication.getName();
     }
-
 }

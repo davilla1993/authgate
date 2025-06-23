@@ -7,6 +7,7 @@ import com.follysitou.authgate.dtos.auth.RegisterRequest;
 import com.follysitou.authgate.dtos.role.RoleRequest;
 import com.follysitou.authgate.dtos.user.AccountStatusResponseDto;
 import com.follysitou.authgate.dtos.user.UserResponseDto;
+import com.follysitou.authgate.dtos.user.UserUpdateRequest;
 import com.follysitou.authgate.exceptions.EntityNotFoundException;
 import com.follysitou.authgate.mappers.user.UserMapper;
 import com.follysitou.authgate.models.BlackListedToken;
@@ -49,8 +50,8 @@ public class AdminController {
     private final UserService userService;
     private final AuthService authService;
     private final RoleService roleService;
-    private final UserRepository userRepository;
     private final JwtService jwtService;
+    private final UserRepository userRepository;
     private final BlackListedTokenRepository blackListedTokenRepository;
 
     //   +++++++++++++++++++++++++++++++++++++++ User Management ++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -97,10 +98,10 @@ public class AdminController {
     @PutMapping("/users/{id}")
     @PreAuthorize("hasAuthority('admin:user:update')")
     public ResponseEntity<UserResponseDto> updateUser(
-            @PathVariable Long id,
-            @RequestBody Map<String, Object> updates) {
+            @PathVariable String email,
+            @RequestBody UserUpdateRequest request) {
 
-        UserResponseDto updatedUser = userService.updateUser(id, updates);
+        UserResponseDto updatedUser = userService.updateUser(email, request);
 
         return ResponseEntity.ok(updatedUser);
     }
@@ -173,15 +174,15 @@ public class AdminController {
     public ResponseEntity<Role> addPermissionsToRole(@PathVariable Long roleId,
                                                       @RequestBody Set<Long> permissionIds) {
 
-        Role role = roleService.updateRolePermissions(roleId, permissionIds);
+        Role role = roleService.addPermissionsToRole(roleId, permissionIds);
         return ResponseEntity.ok(role);
     }
 
     @PostMapping("/roles/assign")
     @PreAuthorize("hasAuthority('admin:role:assign')")
-    public ResponseEntity<ApiResponse> addRolesToUser( @RequestParam Long userId, @RequestParam Set<Long> roleId) {
+    public ResponseEntity<ApiResponse> addRolesToUser(@RequestParam Long userId, @RequestParam Set<Long> roleId) {
 
-        roleService.updateUserRole(userId, roleId);
+        roleService.addRolesToUser(userId, roleId);
         return ResponseEntity.ok(new ApiResponse(true, "Role successfully assigned"));
     }
 
@@ -189,9 +190,9 @@ public class AdminController {
     @PreAuthorize("hasAuthority('admin:role:revoke')")
     public ResponseEntity<ApiResponse> revokeRoleFromUser(
             @RequestParam Long userId,
-            @RequestParam Long roleId) {
+            @RequestParam Set<Long> roleIds) {
 
-        roleService.revokeRoleFromUser(userId, roleId);
+        roleService.revokeRoleFromUser(userId, roleIds);
         return ResponseEntity.ok(new ApiResponse(true, "Role successfully revoked"));
     }
 

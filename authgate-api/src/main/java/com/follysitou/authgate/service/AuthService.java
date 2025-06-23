@@ -48,11 +48,11 @@ public class AuthService implements UserDetailsService {
     private final PasswordEncoder passwordEncoder;
     private final UserSessionService userSessionService;
     private final RefreshTokenService refreshTokenService;
-    private final RefreshTokenRepository refreshTokenRepository;
+    private final RoleHierarchyService roleHierarchyService;
     private final PasswordValidatorService passwordValidator;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final AuthenticationManager authenticationManager;
     private final BlackListedTokenRepository blackListedTokenRepository;
-
 
     @Value("${app.security.csrf.logout-enabled}")
     private boolean csrfEnabledForLogout;
@@ -70,6 +70,7 @@ public class AuthService implements UserDetailsService {
                        RoleService roleService,
                        UserSessionService userSessionService,
                        RefreshTokenService refreshTokenService,
+                       RoleHierarchyService roleHierarchyService,
                        RefreshTokenRepository refreshTokenRepository,
                        PasswordValidatorService passwordValidator,
                        @Lazy AuthenticationManager authenticationManager,
@@ -82,6 +83,7 @@ public class AuthService implements UserDetailsService {
         this.emailService = emailService;
         this.userSessionService = userSessionService;
         this.refreshTokenService = refreshTokenService;
+        this.roleHierarchyService = roleHierarchyService;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordValidator = passwordValidator;
         this.authenticationManager = authenticationManager;
@@ -342,41 +344,21 @@ public class AuthService implements UserDetailsService {
     }
 
     public ApiResponse lockUserAccount(String targetEmail, String reason, String adminEmail) {
-        User adminUser = userRepository.findByEmail(adminEmail)
-                .orElseThrow(() -> new EntityNotFoundException("Admin User not found", ErrorCodes.ENTITY_NOT_FOUND));
-
         User targetUser = userRepository.findByEmail(targetEmail)
                 .orElseThrow(() -> new EntityNotFoundException("Target user not found.", ErrorCodes.USER_NOT_FOUND));
 
-        // Get the current authenticated user's roles
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new UnauthorizedException("User not authenticated.", ErrorCodes.UNAUTHORIZED_ACCESS);
-        }
-
-        // Check if the current user is an ACCOUNT_MANAGER
-        boolean isAdminAccountManager = authentication.getAuthorities().stream()
-                .anyMatch(grantedAuthority ->
-                        grantedAuthority.getAuthority().equals("ROLE_ACCOUNT_MANAGER"));
-
-        // Check if the target user is an ADMIN
         boolean isTargetAdmin = targetUser.getRoles().stream()
                 .anyMatch(role -> role.getName().equals("ROLE_ADMIN"));
 
-        // **New Logic for Account Manager Restriction**
-        if (isAdminAccountManager && isTargetAdmin) {
-            throw new InvalidOperationException("Account Managers cannot lock or unlock Administrator accounts.",
-                    ErrorCodes.FORBIDDEN_ACCESS);
-        }
+        roleHierarchyService.checkAccountManagerAdminRestriction(isTargetAdmin,
+                "Account Manager cannot lock Administrator accounts.");
 
         if (targetUser.isAccountLocked()) {
             throw new InvalidOperationException("User account is already locked.", ErrorCodes.ACCOUNT_LOCKED);
         }
-
         targetUser.manualLock(reason, adminEmail);
         userRepository.save(targetUser);
 
-        // Log l'action
         log.info("Account {} locked by {} for reason: {}", targetEmail, adminEmail, reason);
 
         emailService.sendAccountManuallyLockedEmail(
@@ -392,31 +374,15 @@ public class AuthService implements UserDetailsService {
         User targetUser = userRepository.findByEmail(targetEmail)
                 .orElseThrow(() -> new EntityNotFoundException("User not found.", ErrorCodes.USER_NOT_FOUND));
 
-        // Get the current authenticated user's roles
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new UnauthorizedException("User not authenticated.", ErrorCodes.UNAUTHORIZED_ACCESS);
-        }
-
-        // Check if the current user is an ACCOUNT_MANAGER
-        boolean isAdminAccountManager = authentication.getAuthorities().stream()
-                .anyMatch(grantedAuthority ->
-                        grantedAuthority.getAuthority().equals("ROLE_ACCOUNT_MANAGER"));
-
-        // Check if the target user is an ADMIN
         boolean isTargetAdmin = targetUser.getRoles().stream()
                 .anyMatch(role -> role.getName().equals("ROLE_ADMIN"));
 
-        // **New Logic for Account Manager Restriction**
-        if (isAdminAccountManager && isTargetAdmin) {
-            throw new InvalidOperationException("Account Managers cannot lock or unlock Administrator accounts.",
-                    ErrorCodes.FORBIDDEN_ACCESS);
-        }
+        roleHierarchyService.checkAccountManagerAdminRestriction(isTargetAdmin,
+                "Account Managers cannot unlock Administrator accounts.");
 
         if (!targetUser.isAccountLocked()) {
             throw new InvalidOperationException("Account is not locked", ErrorCodes.INVALID_OPERATION);
         }
-
         targetUser.unlockAccount();
         userRepository.save(targetUser);
 
@@ -424,7 +390,7 @@ public class AuthService implements UserDetailsService {
                 "Votre compte a été déverrouillé par un administrateur. " +
                         "Vous pouvez maintenant vous connecter normalement.");
 
-        return new ApiResponse(true, "Account successfully unlocked");
+        return new ApiResponse(true, "User account unlocked successfully.");
     }
 
     public ApiResponse logout(HttpServletRequest request,

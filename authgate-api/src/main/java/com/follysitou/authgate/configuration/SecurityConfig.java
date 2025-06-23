@@ -25,6 +25,12 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.header.writers.XXssProtectionHeaderWriter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -60,28 +66,6 @@ public class SecurityConfig {
     }
 
     @Bean
-    public RoleHierarchy roleHierarchy() {
-        RoleHierarchyImpl roleHierarchy = new RoleHierarchyImpl();
-        String hierarchy = "ROLE_ADMIN > ROLE_MANAGER " +
-                "ROLE_MANAGER > ROLE_SUPERVISOR " +
-                "ROLE_SUPERVISOR > ROLE_ASSISTANT " +
-                "ROLE_ASSISTANT > ROLE_AGENT " +
-                "ROLE_AGENT > ROLE_TEMPORARY";
-        roleHierarchy.setHierarchy(hierarchy);
-        return roleHierarchy;
-    }
-
-    @Bean
-    public MethodSecurityExpressionHandler methodSecurityExpressionHandler(ApplicationContext applicationContext,
-                                                                           RoleHierarchy roleHierarchy) {
-
-        DefaultMethodSecurityExpressionHandler expressionHandler = new DefaultMethodSecurityExpressionHandler();
-        expressionHandler.setApplicationContext(applicationContext);
-        expressionHandler.setRoleHierarchy(roleHierarchy); // Important !
-        return expressionHandler;
-    }
-
-    @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
         return (web) -> web.ignoring().requestMatchers(
                 "/v2/api-docs",
@@ -98,9 +82,35 @@ public class SecurityConfig {
     }
 
     @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:4200",  // Frontend Angular en développement
+                "https://votre-production-domain.com"  // Frontend en production
+        ));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "X-XSRF-TOKEN",
+                "Accept",
+                "Origin",
+                "X-Requested-With"
+        ));
+        configuration.setExposedHeaders(List.of("X-XSRF-TOKEN"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L); // 1 heure de cache pour les pré-vérifications CORS
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+
+    @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         // 1. Configuration de base (stateless, headers, etc.)
         http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Activation CORS
                 .exceptionHandling(exception -> exception
                         .accessDeniedHandler(customAccessDeniedHandler)
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint))
@@ -115,7 +125,6 @@ public class SecurityConfig {
                         .frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin));
 
         // 2. Configuration CSRF hybride
-        // Les chemins Swagger sont déjà ignorés ici, ce qui est parfait.
         http.csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .ignoringRequestMatchers(
@@ -129,10 +138,9 @@ public class SecurityConfig {
                 )
                 .requireCsrfProtectionMatcher(
                         request -> {
-                            // Active CSRF uniquement pour /logout et endpoints sensibles
                             String path = request.getRequestURI();
                             return path.startsWith("/auth/logout") ||
-                                    path.startsWith("/sensitive-action"); // Remplace par tes propres chemins sensibles
+                                    path.startsWith("/sensitive-action");
                         }
                 )
         );
@@ -141,15 +149,16 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers("/admin/**").hasAuthority("admin:access")
                 .requestMatchers("/users/**").hasRole("user:access")
-                .requestMatchers("/swagger-ui/**",
+                .requestMatchers(
+                        "/swagger-ui/**",
                         "/v3/api-docs/**",
-                        "/auth/**")
+                        "/auth/**"
+                )
                 .permitAll()
-                .anyRequest().authenticated() // Toutes les autres requêtes nécessitent une authentification
+                .anyRequest().authenticated()
         );
 
         // 4. Filtres
-        // L'ordre est important : Rate Limiting avant JwtAuthenticationFilter,
         http
                 .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

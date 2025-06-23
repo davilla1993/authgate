@@ -38,6 +38,26 @@ public class UserPhotoController {
         return ResponseEntity.ok("Photo updated successfully");
     }
 
+    @PutMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('user:update') or #userId == principal.id")
+    public ResponseEntity<String> updatePhoto(@PathVariable Long userId, @RequestParam("file") MultipartFile file) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
+        // Supprime l’ancienne photo si elle existe
+        if (user.getPhotoUrl() != null) {
+            fileStorageService.deleteFile(user.getPhotoUrl());
+        }
+
+        // Sauvegarde la nouvelle photo
+        String filename = fileStorageService.storeFile(file, userId.toString());
+        user.setPhotoUrl(filename);
+        userRepository.save(user);
+
+        return ResponseEntity.ok("Photo updated successfully");
+    }
+
     @GetMapping
     public ResponseEntity<Resource> getPhoto(@PathVariable Long userId) {
         User user = userRepository.findById(userId)
