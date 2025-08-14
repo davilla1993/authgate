@@ -1,5 +1,7 @@
 package com.follysitou.authgate.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.follysitou.authgate.dtos.auth.*;
 import com.follysitou.authgate.exceptions.*;
 import com.follysitou.authgate.handlers.ErrorCodes;
@@ -9,6 +11,7 @@ import com.follysitou.authgate.models.User;
 import com.follysitou.authgate.repository.BlackListedTokenRepository;
 import com.follysitou.authgate.repository.RefreshTokenRepository;
 import com.follysitou.authgate.repository.UserRepository;
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +24,6 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -32,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
@@ -59,6 +62,9 @@ public class AuthService implements UserDetailsService {
 
     @Value("${app.verification.code-expiration}")
     private long codeExpirationTime;
+
+    @Value("${app.jwt.refresh-expiration}")
+    private long refreshTokenExpirationMs;
 
     @Value("${app.account.lock-time-minutes}")
     private int accountLockTimeMinutes;
@@ -209,7 +215,7 @@ public class AuthService implements UserDetailsService {
         }
     }
 
-    private boolean codeIsValid(User user, String code) {
+    private boolean IsOTPValid(User user, String code) {
         return user.getVerificationCode() != null &&
                 user.getVerificationCode().equals(code) &&
                 user.getVerificationCodeExpiry() != null &&
@@ -222,7 +228,7 @@ public class AuthService implements UserDetailsService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
-        if (!codeIsValid(user, request.getCode())) {
+        if (!IsOTPValid(user, request.getCode())) {
             throw new InvalidOperationException("Invalid or expired code");
         }
 
@@ -239,7 +245,7 @@ public class AuthService implements UserDetailsService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
-        if (!codeIsValid(user, request.getCode())) {
+        if (!IsOTPValid(user, request.getCode())) {
             throw new InvalidOperationException("Invalid or expired code");
         }
 
@@ -247,8 +253,8 @@ public class AuthService implements UserDetailsService {
         user.setVerificationCodeExpiry(null);
         userRepository.save(user);
 
-        String accessToken = jwtService.generateToken(user);
-        String refreshToken = jwtService.generateRefreshToken(user);
+        String accessToken = jwtService.generateAccessToken(user);
+        String refreshToken = refreshTokenService.createRefreshToken(user);
 
         userRepository.updateLastActivityAndOnline(request.getEmail(), Instant.now(), true);
 
@@ -307,30 +313,42 @@ public class AuthService implements UserDetailsService {
 
     @Transactional
     public AuthResponse refreshToken(String oldRefreshToken, HttpServletResponse response) {
-        // 1. Validate the old refresh token (from persistent storage)
-        RefreshToken storedOldToken = refreshTokenService.verifyRefreshToken(oldRefreshToken);
-        User user = storedOldToken.getUser();
+        log.info("Attempting to refresh token with: {}", oldRefreshToken.substring(0, 10) + "...");
 
-        // 2. Revoke the old refresh token in the database
-        storedOldToken.setRevoked(true);
-        storedOldToken.setRevoked(true); // Set revocation timestamp
-        refreshTokenRepository.save(storedOldToken);
+        try {
+            
+            // 1. Validate the old refresh token (from persistent storage)
+            RefreshToken storedOldToken = refreshTokenService.verifyRefreshToken(oldRefreshToken);
+            User user = storedOldToken.getUser();
 
-        // 3. (Optional but recommended for an extra layer of security) Blacklist the raw old refresh token string
-        // This prevents the raw string from being reused even if the DB record is somehow missed
-        blackListedTokenRepository.save(new BlackListedToken(oldRefreshToken, Instant.now()));
+            // 2. Revoke the old refresh token in the database
+            storedOldToken.setRevoked(true);
+            refreshTokenRepository.save(storedOldToken);
 
-        // 4. Generate new Access Token
-        String newAccessToken = jwtService.generateToken(user);
+            // 3. Blacklisted old JWT token
+            blackListedTokenRepository.save(new BlackListedToken(oldRefreshToken,
+                    jwtService.extractExpiration(oldRefreshToken).toInstant()));
 
-        // 5. Generate a new Refresh Token and save it
-        RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user);
+            // 4. Generate new Access Token
+            String newAccessToken = jwtService.generateAccessToken(user);
 
-        // 6. Add the new refresh token to a HttpOnly cookie
-        response.addHeader(HttpHeaders.SET_COOKIE,
-                createRefreshTokenCookie(newRefreshToken.getTokenHash()).toString());
+            // 5. Generate a new Refresh Token and save it
+            String newRefreshToken = refreshTokenService.createRefreshToken(user);
 
-        return new AuthResponse(newAccessToken, null);
+            // 6. Add the new refresh token to a HttpOnly cookie
+            response.addHeader(HttpHeaders.SET_COOKIE,
+                    createRefreshTokenCookie(newRefreshToken).toString());
+
+            return new AuthResponse(newAccessToken, newRefreshToken, "Token refreshed successfully");
+
+        } catch(UnauthorizedException e) {
+            log.error("Unauthorized refresh token attempt: {}", e.getMessage());
+            throw new UnauthorizedException("Invalid refresh token ", ErrorCodes.REFRESH_TOKEN_INVALID);
+
+        } catch (Exception e) {
+            log.error("Error during token refresh: {}", e.getMessage(), e);
+            throw new BusinessException("Failed to refresh token: " + e.getMessage());
+        }
     }
 
     private ResponseCookie createRefreshTokenCookie(String refreshToken) {
@@ -339,7 +357,7 @@ public class AuthService implements UserDetailsService {
                 .secure(true) // En production uniquement avec HTTPS
                 .sameSite("Strict")
                 .maxAge(Duration.ofDays(30))
-                .path("/api/auth/refresh-token")
+                .path("/api/auth")
                 .build();
     }
 
@@ -458,6 +476,16 @@ public class AuthService implements UserDetailsService {
         Random random = new Random();
         int code = 100000 + random.nextInt(900000);
         return String.valueOf(code);
+    }
+
+    public Claims decodeTokenWithoutValidation(String token) throws JsonProcessingException {
+        String[] parts = token.split("\\.");
+        if (parts.length != 3) {
+            throw new RuntimeException("Invalid JWT structure");
+        }
+
+        String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
+        return new ObjectMapper().readValue(payload, Claims.class);
     }
 }
 

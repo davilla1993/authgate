@@ -34,16 +34,14 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/admin")
+@PreAuthorize("hasAnyRole('ADMIN','ACCOUNT_MANAGER')")
 @RequiredArgsConstructor
 public class AdminController {
 
@@ -224,7 +222,7 @@ public class AdminController {
         stats.put("activeUsers", userRepository.countByEnabledTrue());
         stats.put("lockedUsers", userRepository.countByAccountNonLockedFalse());
         stats.put("onLineUsers", userRepository.countByOnlineTrue());
-        stats.put("recentUsers", userRepository.countByCreatedAtAfter(LocalDateTime.now().minusDays(7)));
+       // stats.put("recentUsers", userRepository.countByCreatedAtAfter(LocalDateTime.now().minusDays(7)));
 
         return ResponseEntity.ok(stats);
     }
@@ -252,7 +250,7 @@ public class AdminController {
     }
 
     @PutMapping("/me")
-    @PreAuthorize("hasAnyAuthority('admin:self:update')")
+    @PreAuthorize("hasAuthority('admin:self:update')")
     public ResponseEntity<UserResponseDto> updateSelf(
             @RequestBody Map<String, Object> updates,
             @AuthenticationPrincipal UserDetails currentUser) {

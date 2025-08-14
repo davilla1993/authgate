@@ -14,14 +14,6 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class RoleHierarchyService {
 
-    /**
-     * Vérifie si l'utilisateur courant (l'acteur) est un ROLE_ACCOUNT_MANAGER
-     * et si la cible de l'opération est un ROLE_ADMIN ou une entité liée à ROLE_ADMIN.
-     * Si c'est le cas, une exception InvalidOperationException est levée.
-     *
-     * @param isTargetAdmin True si la cible de l'opération est un ADMIN ou le rôle ADMIN.
-     * @param errorMessage Le message d'erreur spécifique à afficher si l'opération est interdite.
-     */
     public void checkAccountManagerAdminRestriction(boolean isTargetAdmin, String errorMessage) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 

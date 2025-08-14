@@ -9,7 +9,7 @@ import com.follysitou.authgate.repository.RoleRepository;
 import com.follysitou.authgate.repository.UserRepository;
 import com.follysitou.authgate.service.DynamicPermissionGenerator;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j; // Import for @Slf4j
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,17 +17,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.time.LocalDateTime; // Added for User creation timestamp
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
-@Slf4j // Add the Slf4j annotation here
+@Slf4j
 @Configuration
 @RequiredArgsConstructor
-public class Main {
+public class Initializer {
 
     private final RoleRepository roleRepo;
     private final UserRepository userRepository;
@@ -51,7 +47,7 @@ public class Main {
                     "admin:system:read", "Lire les informations système", // Added based on AuthGateAPI.txt
                     "admin:role:assign", "Assigner les rôles aux utilisateurs", // Added based on AuthGateAPI.txt
                     "admin:role:revoke", "Révoquer les rôles aux utilisateurs",
-                    "basic_access", "Accès basique à l'application" // Keep if needed for general access
+                    "basic:access", "Accès basique à l'application" // Keep if needed for general access
             );
 
 
@@ -62,7 +58,7 @@ public class Main {
                     "user:self:update", "Modifier son propre profil",
                     "user:self:delete", "Supprimer son propre profil",
                     "user:update", "Mettre à jour les informations de l'utilisateur", // Added based on AuthGateAPI.txt
-                    "basic_access", "Accès basique à l'application"
+                    "basic:access", "Accès basique à l'application"
             );
 
             // 2. Permissions dynamiques ADMIN et ACCOUNT_MANAGER (sur les entités Role et User)
@@ -85,7 +81,8 @@ public class Main {
             allUniquePermissionKeys.addAll(staticPermissionsForUser.keySet());
 
             allUniquePermissionKeys.forEach(permissionKey -> {
-                String description = allPermissionsForAdminAndAccountManager.getOrDefault(permissionKey, staticPermissionsForUser.getOrDefault(permissionKey, "Permission générique"));
+                String description = allPermissionsForAdminAndAccountManager.getOrDefault(permissionKey,
+                        staticPermissionsForUser.getOrDefault(permissionKey, "Permission générique"));
                 createPermissionIfNotExists(permissionKey, description);
             });
 
@@ -106,31 +103,34 @@ public class Main {
     }
     
     private void createPermissionIfNotExists(String permissionKey, String description) {
-        String dbPermissionName = DynamicPermissionGenerator.toDatabaseFormat(permissionKey);
+      //  String dbPermissionName = DynamicPermissionGenerator.toDatabaseFormat(permissionKey);
 
-        if (!permissionRepo.existsByNameIgnoreCase(dbPermissionName)) {
+        if (!permissionRepo.existsByName(permissionKey)) {
             Permission p = new Permission();
-            p.setName(dbPermissionName);
+            p.setName(permissionKey);
             p.setDescription(description);
-            p.setCreatedBy("carlogbossou93@gmail.com"); // User information: `carlogbossou93@gmail.com`
+            p.setCreatedBy("Auto-generated");
             permissionRepo.saveAndFlush(p);
 
-            log.info("Permission créée : {}", dbPermissionName);
+            log.info("Permission créée : {}", permissionKey);
         } else {
-            log.info("Permission déjà existante : {}", dbPermissionName);
+            log.info("Permission déjà existante : {}", permissionKey);
         }
     }
 
     private void createRoleIfNotExists(String roleName, Set<String> permissionKeys) {
         if (!roleRepo.existsByName(roleName)) {
             Set<Permission> permissions = permissionKeys.stream()
-                    .map(DynamicPermissionGenerator::toDatabaseFormat)
-                    .map(name -> permissionRepo.findByNameIgnoreCase(name)
-                            .orElseThrow(() -> {
-                                log.error("Permission introuvable pour le rôle {} : {}", roleName, name);
-                                return new RuntimeException("Permission non trouvée: " + name);
-                            }))
+                    .map(name -> {
+                        Optional<Permission> permissionOpt = permissionRepo.findByName(name);
+                        if (permissionOpt.isEmpty()) {
+                            log.error("Permission introuvable pour le rôle {} : {}", roleName, name);
+                            throw new RuntimeException("Permission non trouvée: " + name);
+                        }
+                        return permissionOpt.get();
+                    })
                     .collect(Collectors.toSet());
+
 
             Role role = new Role();
             role.setName(roleName);
@@ -142,7 +142,7 @@ public class Main {
                     }
             );
             role.setPermissions(permissions);
-            role.setCreatedBy("carlogbossou93@gmail.com"); // User information: `carlogbossou93@gmail.com`
+            role.setCreatedBy("Auto-generated"); // User information: `carlogbossou93@gmail.com`
             roleRepo.save(role);
 
             log.info("Rôle {} créé avec {} permissions", roleName, permissions.size());
@@ -162,8 +162,8 @@ public class Main {
             user.setLastName("Programmer");
             user.setEnabled(true);
             user.setAccountNonLocked(true); // Ensure admin is not locked by default
-            user.setCreatedBy("carlogbossou93@gmail.com"); // User information: `carlogbossou93@gmail.com`
-            user.setCreatedAt(Instant.from(LocalDateTime.now())); // Set creation timestamp
+            user.setCreatedBy("system@authgate.com"); // User information: `carlogbossou93@gmail.com`
+            user.setCreatedAt(Instant.now()); // Set creation timestamp
 
             Role adminRole = roleRepo.findByName("ROLE_ADMIN")
                     .orElseThrow(() -> new RuntimeException("ROLE_ADMIN introuvable. " +

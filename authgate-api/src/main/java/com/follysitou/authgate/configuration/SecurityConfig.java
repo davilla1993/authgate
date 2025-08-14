@@ -1,16 +1,12 @@
 package com.follysitou.authgate.configuration;
 
+
 import com.follysitou.authgate.handlers.CustomAccessDeniedHandler;
 import com.follysitou.authgate.service.AuthService;
-
-import org.springframework.context.ApplicationContext;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
-import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
-import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
-import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -36,6 +32,9 @@ import java.util.List;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    @Value("${server.servlet.context-path}")
+    private String contextPath;
 
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -147,8 +146,8 @@ public class SecurityConfig {
 
         // 3. Autorisations
         http.authorizeHttpRequests(auth -> auth
-                .requestMatchers("/admin/**").hasAuthority("admin:access")
-                .requestMatchers("/users/**").hasRole("user:access")
+                .requestMatchers("/authgate/admin/**").hasRole("ADMIN")
+                .requestMatchers( "/authgate/users/**").hasRole("USER")
                 .requestMatchers(
                         "/swagger-ui/**",
                         "/v3/api-docs/**",

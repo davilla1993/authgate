@@ -41,7 +41,7 @@ public class RateLimitingFilter implements Filter {
             return;
         }
 
-        if (path.startsWith("/api/auth/register")) {
+        if (path.startsWith("/auth/register")) {
             CachedBodyHttpServletRequest cachedRequest = new CachedBodyHttpServletRequest(httpRequest);
 
             String clientIp = getClientIP(cachedRequest);

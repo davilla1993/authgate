@@ -1,7 +1,5 @@
 package com.follysitou.authgate.service;
 
-import lombok.Builder;
-
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -23,10 +21,6 @@ public class DynamicPermissionGenerator {
 
     public static String formatPermission(String role, String resource, String action) {
         return role + ":" + resource + ":" + action.toLowerCase(); // pour annotation @PreAuthorize
-    }
-
-    public static String toDatabaseFormat(String permission) {
-        return permission.replace(":", "_").toUpperCase(); // pour enregistrement en base
     }
 
     public enum PermissionAction {

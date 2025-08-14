@@ -103,10 +103,9 @@ public class User extends Auditable implements UserDetails {
 
      return this.roles.stream()
                 .flatMap(role -> role.getPermissions().stream())
-                .map(permission -> new SimpleGrantedAuthority(
-                        permission.getName().toLowerCase().replace("_", ":")
-                ))
+                .map(permission -> new SimpleGrantedAuthority(permission.getName()))
              .collect(Collectors.toList());
+
     }
 
     public boolean incrementFailedAttempts() {

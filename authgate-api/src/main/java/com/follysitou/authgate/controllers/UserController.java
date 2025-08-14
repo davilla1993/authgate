@@ -7,6 +7,7 @@ import com.follysitou.authgate.models.User;
 import com.follysitou.authgate.repository.UserRepository;
 import com.follysitou.authgate.service.UserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -16,8 +17,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/users")
+@PreAuthorize("hasRole('USER')")
 @RequiredArgsConstructor
 public class UserController {
 
@@ -27,13 +30,18 @@ public class UserController {
     @GetMapping("/me")
     @PreAuthorize("hasAuthority('user:self:read')")
     public ResponseEntity<UserResponseDto> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
+
+        log.debug("Fetching current user with email: {}", userDetails.getUsername());
+        log.debug("Authorities: {}", userDetails.getAuthorities());
+
         User user = userRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
         return ResponseEntity.ok(UserMapper.mapToDto(user));
     }
 
     @PutMapping("/me")
-    @PreAuthorize("hasAnyAuthority('user:self:update')")
+    @PreAuthorize("hasAuthority('user:self:update')")
     public ResponseEntity<UserResponseDto> updateSelf(
             @RequestBody Map<String, Object> updates,
             @AuthenticationPrincipal UserDetails currentUser) {

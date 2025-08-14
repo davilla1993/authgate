@@ -1,6 +1,8 @@
 package com.follysitou.authgate.controllers;
 
 import com.follysitou.authgate.dtos.auth.*;
+import com.follysitou.authgate.exceptions.UnauthorizedException;
+import com.follysitou.authgate.handlers.ErrorCodes;
 import com.follysitou.authgate.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -9,8 +11,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
+import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @Slf4j
@@ -113,11 +118,28 @@ public class AuthController {
 
     @PostMapping("/refresh-token")
     public ResponseEntity<AuthResponse> refreshToken(
-            @CookieValue(name = "refreshToken") String oldRefreshToken,
+            @CookieValue(name = "refreshToken", required = false) String cookieRefreshToken,
+            @RequestBody(required = false) Map<String, String> requestBody,
             HttpServletResponse response) {
 
-        AuthResponse authResponse = authService.refreshToken(oldRefreshToken, response);
+        String refreshToken = Optional.ofNullable(cookieRefreshToken)
+                .or(() -> Optional.ofNullable(requestBody).map(body -> body.get("refreshToken")))
+                .orElseThrow(() -> new UnauthorizedException("Refresh token is required", ErrorCodes.TOKEN_INVALID));
 
-        return ResponseEntity.ok(authResponse);
+        try {
+            AuthResponse authResponse = authService.refreshToken(refreshToken, response);
+            return ResponseEntity.ok(authResponse);
+        } catch (UnauthorizedException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new AuthResponse(e.getMessage(), false));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new AuthResponse("Internal server error", false));
+        }
+    }
+
+    @GetMapping("/now")
+    public String now() {
+        return Instant.now().toString();
     }
 }

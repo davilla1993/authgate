@@ -31,79 +31,89 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final AuthService authService;
-    private final UserRepository userRepository;
     private final BlackListedTokenRepository blackListedTokenRepository;
 
     public JwtAuthenticationFilter(JwtService jwtService,
                                    @Lazy AuthService authService,
-                                   UserRepository userRepository,
                                    BlackListedTokenRepository blackListedTokenRepository) {
         this.jwtService = jwtService;
         this.authService = authService;
-        this.userRepository = userRepository;
         this.blackListedTokenRepository = blackListedTokenRepository;
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, @NonNull HttpServletResponse response,
-                                   @NonNull FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request,
+                                    @NonNull HttpServletResponse response,
+                                    @NonNull FilterChain filterChain)
+            throws ServletException, IOException {
 
-        // 1. Extraire le token du header
-        log.debug("Début du filtre JWT pour : {}", request.getRequestURI());
+        String requestUri = request.getRequestURI();
+        log.debug("➡️ Début du filtre JWT - URI: {} - Méthode: {}", requestUri, request.getMethod());
 
         final String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.warn("Aucun token Bearer trouvé dans l'en-tête");
-
+            log.warn("⚠️ Aucun token Bearer trouvé dans l'en-tête pour {}", requestUri);
             filterChain.doFilter(request, response);
             return;
         }
 
-        // 2. Vérifier la blacklist (pour les access ET refresh tokens)
+        // Extraction du token
         final String jwt = authHeader.substring(7);
-        log.debug("Token JWT reçu : {}", jwt);
+        log.debug("🔑 Token JWT reçu: {}", jwt);
 
+        // Vérification basique de validité
         if (!jwtService.isTokenValid(jwt)) {
+            log.error("⛔ Token invalide (signature/expiration) pour {}", requestUri);
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid token");
             return;
         }
 
+        // Vérification de la blacklist
         String tokenHash = TokenUtils.sha256(jwt);
         if (blackListedTokenRepository.existsByTokenHash(tokenHash)) {
+            log.error("⛔ Token blacklisté pour {}", requestUri);
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid session");
             return;
         }
 
         try {
-
-            // 3. Valider le token
             String userEmail = jwtService.extractUsername(jwt);
-            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                log.debug("Validation du token pour l'utilisateur : {}", userEmail);
+            log.debug("📧 Utilisateur extrait du token: {}", userEmail);
 
+            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = this.authService.loadUserByUsername(userEmail);
 
+                log.debug("✅ Utilisateur chargé depuis AuthService : {}", userDetails.getUsername());
+                log.debug("📜 Authorities de l'utilisateur: {}", userDetails.getAuthorities());
+
                 if (jwtService.validateToken(jwt, userDetails)) {
-                    log.debug("Token valide pour {}", userEmail);
+                    log.info("🔓 Token valide - authentification établie pour {}", userEmail);
 
-                 //   userRepository.updateLastActivityAndOnline(userEmail, Instant.now(), true);
-
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities()
-                    );
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails,
+                                    null,
+                                    userDetails.getAuthorities()
+                            );
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
-                    log.info("Authenticating user with token for email: {}", userEmail);
+
+                } else {
+                    log.error("⛔ Token non valide après validation complète pour {}", userEmail);
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid token");
+                    return;
                 }
             }
-        } catch(Exception ex) {
-            log.error("Erreur lors de la validation du token : ", ex);
+        } catch (Exception ex) {
+            log.error("💥 Erreur lors de la validation du token: ", ex);
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid token");
             return;
         }
+
+        // Poursuite de la chaîne de filtres
+        log.debug("➡️ Fin du filtre JWT - Passage au contrôleur");
         filterChain.doFilter(request, response);
     }
 }
+
 

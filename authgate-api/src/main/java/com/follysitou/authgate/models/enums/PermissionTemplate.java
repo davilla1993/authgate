@@ -12,6 +12,7 @@ public enum PermissionTemplate {
     USER_UPDATE("user:update"),
     USER_LOCK("user:lock"),
     USER_UNLOCK("user:unlock"),
+    USER_ACCESS("user:access"),
 
     ROLE_CREATE("role:create"),
     ROLE_ASSIGN("role:assign");
