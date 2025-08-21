@@ -16,28 +16,26 @@ phases:
       - pwd
       - echo "Contenu du répertoire racine:"
       - ls -la
-      - echo "Recherche de fichiers pom.xml:"
-      - find . -name "pom.xml" -type f
-      - echo "Structure complète:"
-      - find . -type d -name "*authgate*" -o -name "*api*" -o -name "*spring*" | sort
+      - echo "Vérification du répertoire authgate-api:"
+      - ls -la authgate-api/ || echo "authgate-api/ non trouvé, liste complète:"
+      - ls -la
 
   pre_build:
     commands:
-      - echo "=== LOCALISATION DU PROJET ==="
-      - PROJECT_DIR=$(find . -name "pom.xml" -type f -printf '%h\n' | head -1)
-      - echo "Répertoire du projet trouvé: $PROJECT_DIR"
-      - cd "$PROJECT_DIR" || { echo "Échec du changement de répertoire"; exit 1; }
-      - echo "Contenu du répertoire du projet:"
+      - echo "=== NAVIGATION VERS LE PROJET ==="
+      - cd authgate-api
+      - echo "Nous sommes dans: $(pwd)"
+      - echo "Contenu du répertoire:"
       - ls -la
 
       - echo "=== CONSTRUCTION DU PROJET ==="
       - if [ -f "./mvnw" ]; then
-        echo "Utilisation de Maven wrapper";
-        chmod +x ./mvnw;
-        ./mvnw clean package -DskipTests;
+        echo "Utilisation de Maven wrapper"
+        chmod +x ./mvnw
+        ./mvnw clean package -DskipTests
         else
-        echo "Utilisation de Maven installé";
-        mvn clean package -DskipTests;
+        echo "Utilisation de Maven installé"
+        mvn clean package -DskipTests
         fi
 
       - echo "=== CONNEXION ECR ==="
@@ -46,11 +44,14 @@ phases:
   build:
     commands:
       - echo "=== CONSTRUCTION DOCKER ==="
-      - echo "Nous sommes dans: $(pwd)"
+      - echo "Construction dans: $(pwd)"
       - docker build -t authgate-api . --progress=plain
 
+      - echo "=== RETOUR AU RÉPERTOIRE RACINE POUR TESTS ==="
+      - cd ..
+      - echo "Maintenant dans: $(pwd)"
+
       - echo "=== LANCEMENT POSTGRES POUR TESTS ==="
-      - cd /codebuild/output/src*/src/github.com/davilla1993/authgate
       - docker run -d --name postgres-test -e POSTGRES_DB=$DB_NAME -e POSTGRES_USER=$DB_USER -e POSTGRES_PASSWORD=$DB_PASS -p 5432:5432 postgres:16
       - sleep 10
 
