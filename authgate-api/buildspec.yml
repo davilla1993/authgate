@@ -11,8 +11,9 @@ phases:
   install:
     runtime-versions:
       java: corretto21
-      docker: 20
     commands:
+      - echo "Vérification de la version de Docker"
+      - docker --version
       - echo "Installation des dépendances terminée"
 
   pre_build:
@@ -25,7 +26,7 @@ phases:
 
   build:
     commands:
-      - echo "Construction de l’image Docker de l’API"
+      - echo "Construction de l'image Docker de l'API"
       - docker build -t authgate-api .
       - REPOSITORY_URI=867344471521.dkr.ecr.eu-north-1.amazonaws.com/authgate-repository
 
@@ -38,7 +39,8 @@ phases:
 
   post_build:
     commands:
-      - echo "Push de l’image dans ECR"
+      - echo "Tag et push de l'image dans ECR"
+      - docker tag authgate-api:latest 867344471521.dkr.ecr.$AWS_REGION.amazonaws.com/authgate-api:latest
       - docker push 867344471521.dkr.ecr.$AWS_REGION.amazonaws.com/authgate-api:latest
 
 artifacts:
