@@ -1,0 +1,46 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_REGION: eu-north-1
+    DB_NAME: authgate
+    DB_USER: postgres
+    DB_PASS: postgres
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto21
+      docker: 20
+    commands:
+      - echo "Installation des dépendances terminée"
+
+  pre_build:
+    commands:
+      - echo "Connexion à ECR"
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 867344471521.dkr.ecr.$AWS_REGION.amazonaws.com
+      - echo "Lancement de PostgreSQL en container pour les tests"
+      - docker run -d --name postgres-test -e POSTGRES_DB=$DB_NAME -e POSTGRES_USER=$DB_USER -e POSTGRES_PASSWORD=$DB_PASS -p 5432:5432 postgres:16
+      - sleep 20 # attendre que la DB démarre
+
+  build:
+    commands:
+      - echo "Construction de l’image Docker de l’API"
+      - docker build -t authgate-api .
+      - REPOSITORY_URI=867344471521.dkr.ecr.eu-north-1.amazonaws.com/authgate-repository
+
+      - echo "Exécution des tests avec PostgreSQL"
+      - docker run --rm --network host \
+        -e SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/$DB_NAME \
+        -e SPRING_DATASOURCE_USERNAME=$DB_USER \
+        -e SPRING_DATASOURCE_PASSWORD=$DB_PASS \
+        authgate-api
+
+  post_build:
+    commands:
+      - echo "Push de l’image dans ECR"
+      - docker push 867344471521.dkr.ecr.$AWS_REGION.amazonaws.com/authgate-api:latest
+
+artifacts:
+  files:
+    - imagedefinitions.json
