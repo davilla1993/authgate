@@ -12,41 +12,49 @@ phases:
     runtime-versions:
       java: corretto21
     commands:
-      - echo "Structure du repository:"
+      - echo "=== EXPLORATION DE LA STRUCTURE ==="
+      - pwd
+      - echo "Contenu du répertoire racine:"
       - ls -la
-      - echo "Navigation vers le répertoire du projet"
+      - echo "Recherche de fichiers pom.xml:"
+      - find . -name "pom.xml" -type f
+      - echo "Structure complète:"
+      - find . -type d -name "*authgate*" -o -name "*api*" -o -name "*spring*" | sort
 
   pre_build:
     commands:
-      - echo "Se déplacer dans authgate-api/"
-      - cd authgate-api || { echo "Répertoire authgate-api non trouvé"; exit 1; }
-      - echo "Contenu du répertoire:"
+      - echo "=== LOCALISATION DU PROJET ==="
+      - PROJECT_DIR=$(find . -name "pom.xml" -type f -printf '%h\n' | head -1)
+      - echo "Répertoire du projet trouvé: $PROJECT_DIR"
+      - cd "$PROJECT_DIR" || { echo "Échec du changement de répertoire"; exit 1; }
+      - echo "Contenu du répertoire du projet:"
       - ls -la
 
-      - echo "Construction du projet"
+      - echo "=== CONSTRUCTION DU PROJET ==="
       - if [ -f "./mvnw" ]; then
-        chmod +x ./mvnw && ./mvnw clean package -DskipTests;
+        echo "Utilisation de Maven wrapper";
+        chmod +x ./mvnw;
+        ./mvnw clean package -DskipTests;
         else
+        echo "Utilisation de Maven installé";
         mvn clean package -DskipTests;
         fi
 
-      - echo "Connexion à ECR"
+      - echo "=== CONNEXION ECR ==="
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 867344471521.dkr.ecr.$AWS_REGION.amazonaws.com
 
   build:
     commands:
-      - echo "Construction de l'image Docker dans authgate-api/"
-      - cd authgate-api || exit 1
+      - echo "=== CONSTRUCTION DOCKER ==="
+      - echo "Nous sommes dans: $(pwd)"
       - docker build -t authgate-api . --progress=plain
 
-      - echo "Retour au répertoire parent pour les tests"
-      - cd ..
-
-      - echo "Lancement de PostgreSQL"
+      - echo "=== LANCEMENT POSTGRES POUR TESTS ==="
+      - cd /codebuild/output/src*/src/github.com/davilla1993/authgate
       - docker run -d --name postgres-test -e POSTGRES_DB=$DB_NAME -e POSTGRES_USER=$DB_USER -e POSTGRES_PASSWORD=$DB_PASS -p 5432:5432 postgres:16
       - sleep 10
 
-      - echo "Exécution des tests"
+      - echo "=== EXÉCUTION DES TESTS ==="
       - docker run --rm --network host \
         -e SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/$DB_NAME \
         -e SPRING_DATASOURCE_USERNAME=$DB_USER \
@@ -55,7 +63,7 @@ phases:
 
   post_build:
     commands:
-      - echo "Tag et push de l'image"
+      - echo "=== PUSH VERS ECR ==="
       - docker tag authgate-api:latest 867344471521.dkr.ecr.$AWS_REGION.amazonaws.com/authgate-api:latest
       - docker push 867344471521.dkr.ecr.$AWS_REGION.amazonaws.com/authgate-api:latest
 
