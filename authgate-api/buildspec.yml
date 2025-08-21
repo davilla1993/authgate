@@ -55,10 +55,11 @@ phases:
       - sleep 10
 
       - echo "=== EXÉCUTION DES TESTS ==="
-      - docker run --rm --network host \
-        -e SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/$DB_NAME \
-        -e SPRING_DATASOURCE_USERNAME=$DB_USER \
-        -e SPRING_DATASOURCE_PASSWORD=$DB_PASS \
+      - >
+        docker run --rm --network host 
+        -e SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/$DB_NAME 
+        -e SPRING_DATASOURCE_USERNAME=$DB_USER 
+        -e SPRING_DATASOURCE_PASSWORD=$DB_PASS 
         authgate-api
 
   post_build:
