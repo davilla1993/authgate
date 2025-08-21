@@ -12,32 +12,41 @@ phases:
     runtime-versions:
       java: corretto21
     commands:
-      - echo "Installation des dépendances"
-      - java -version
-      - mvn -version || echo "Maven non installé, utilisation du wrapper"
-      - chmod +x ./mvnw || true
+      - echo "Structure du repository:"
+      - ls -la
+      - echo "Navigation vers le répertoire du projet"
 
   pre_build:
     commands:
-      - echo "Construction du projet Spring Boot"
-      - ./mvnw clean package -DskipTests || mvn clean package -DskipTests
+      - echo "Se déplacer dans authgate-api/"
+      - cd authgate-api || { echo "Répertoire authgate-api non trouvé"; exit 1; }
+      - echo "Contenu du répertoire:"
+      - ls -la
+
+      - echo "Construction du projet"
+      - if [ -f "./mvnw" ]; then
+        chmod +x ./mvnw && ./mvnw clean package -DskipTests;
+        else
+        mvn clean package -DskipTests;
+        fi
 
       - echo "Connexion à ECR"
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 867344471521.dkr.ecr.$AWS_REGION.amazonaws.com
 
   build:
     commands:
-      - echo "Construction de l'image Docker"
-      - docker build -t authgate-api . --no-cache --progress=plain
+      - echo "Construction de l'image Docker dans authgate-api/"
+      - cd authgate-api || exit 1
+      - docker build -t authgate-api . --progress=plain
 
-      - echo "Vérification de l'image construite"
-      - docker images
+      - echo "Retour au répertoire parent pour les tests"
+      - cd ..
 
-      - echo "Lancement de PostgreSQL pour les tests"
+      - echo "Lancement de PostgreSQL"
       - docker run -d --name postgres-test -e POSTGRES_DB=$DB_NAME -e POSTGRES_USER=$DB_USER -e POSTGRES_PASSWORD=$DB_PASS -p 5432:5432 postgres:16
       - sleep 10
 
-      - echo "Exécution des tests dans le container"
+      - echo "Exécution des tests"
       - docker run --rm --network host \
         -e SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/$DB_NAME \
         -e SPRING_DATASOURCE_USERNAME=$DB_USER \
@@ -46,7 +55,7 @@ phases:
 
   post_build:
     commands:
-      - echo "Tag et push de l'image dans ECR"
+      - echo "Tag et push de l'image"
       - docker tag authgate-api:latest 867344471521.dkr.ecr.$AWS_REGION.amazonaws.com/authgate-api:latest
       - docker push 867344471521.dkr.ecr.$AWS_REGION.amazonaws.com/authgate-api:latest
 
