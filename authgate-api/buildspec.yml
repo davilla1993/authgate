@@ -24,17 +24,18 @@ phases:
     commands:
       - echo "=== NAVIGATION VERS LE PROJET ==="
       - cd authgate-api
+      - echo "Nous sommes dans: $(pwd)"
       - echo "Contenu du répertoire:"
       - ls -la
 
-      - echo "=== CONSTRUCTION DU PROJET ==="
-      - if [ -f "./mvnw" ]; then
-        echo "Utilisation de Maven wrapper"
-        chmod +x ./mvnw
-        ./mvnw clean package -DskipTests
-        else
-        echo "Utilisation de Maven installé"
-        mvn clean package -DskipTests
+      - |
+        if [ -f "./mvnw" ]; then 
+          echo "Utilisation de Maven wrapper"
+          chmod +x ./mvnw
+          ./mvnw clean package -DskipTests
+        else 
+          echo "Utilisation de Maven installé"
+          mvn clean package -DskipTests
         fi
 
       - echo "=== CONNEXION ECR ==="
@@ -55,12 +56,7 @@ phases:
       - sleep 10
 
       - echo "=== EXÉCUTION DES TESTS ==="
-      - >
-        docker run --rm --network host 
-        -e SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/$DB_NAME 
-        -e SPRING_DATASOURCE_USERNAME=$DB_USER 
-        -e SPRING_DATASOURCE_PASSWORD=$DB_PASS 
-        authgate-api
+      - docker run --rm --network host -e SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/$DB_NAME -e SPRING_DATASOURCE_USERNAME=$DB_USER -e SPRING_DATASOURCE_PASSWORD=$DB_PASS authgate-api
 
   post_build:
     commands:
