@@ -24,7 +24,6 @@ phases:
     commands:
       - echo "=== NAVIGATION VERS LE PROJET ==="
       - cd authgate-api
-      - echo "Nous sommes dans: $(pwd)"
       - echo "Contenu du répertoire:"
       - ls -la
 
